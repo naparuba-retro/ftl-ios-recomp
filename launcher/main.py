@@ -17,6 +17,19 @@ def make_window(fullscreen):
     return win, r
 
 
+def launch_game(app, cmd=None):
+    """Lance le jeu construit avec les options choisies ; renvoie son code de retour. cmd : commande de remplacement (tests)."""
+    exe, g = app.launch
+    genv = app.settings.game_env()
+    A.ulog("launching the game with options: %s" % genv)
+    try:
+        rc = subprocess.call(cmd or [exe, "."], cwd=g, env=dict(os.environ, **genv))
+    except OSError as e:
+        A.ulog("cannot launch the game: %s" % e); rc = 1
+    A.ulog("the game exited with code %s" % rc)
+    return rc
+
+
 def run(root, font_dir, argv):
     import ctypes
     from . import sdlttf_init
@@ -88,15 +101,10 @@ def run(root, font_dir, argv):
             app.scanner.ipa_state = "ok"; app.scanner.pc, app.scanner.pc_state = demo_pc, "found"
         app.draw(dt); sdl2.SDL_RenderPresent(r)
     if app.launch:
-        exe, g = app.launch
         sdl2.SDL_HideWindow(win)
-        genv = app.settings.game_env()
-        app_log("launching the game with options: %s" % genv)
-        try: rc = subprocess.call([exe, "."], cwd=g, env=dict(os.environ, **genv))
-        except OSError as e: print("lancement impossible :", e); rc = 1
+        rc = launch_game(app)
         sdl2.SDL_Quit(); return rc
-    app_log = __import__("launcher.app", fromlist=["ulog"]).ulog
-    app_log("exit: app.quit=%s launch=%s" % (app.quit, bool(app.launch)))
+    A.ulog("exit: app.quit=%s launch=%s" % (app.quit, bool(app.launch)))
     sdl2.SDL_Quit(); return 0
 
 
@@ -174,6 +182,14 @@ def selftest_run(root, font_dir, T):
     app.focus = "rebuild"; app.key_action("ok"); frames(); check(app.modal == "rebuild", "RECONSTRUIRE demande confirmation")
     app.key_action("back"); frames(); check(app.modal is None, "Echap annule la confirmation")
     app.focus = "play"; app.key_action("ok"); check(app.launch is not None, "JOUER prepare le lancement du jeu")
+    # le vrai lancement : le jeu recoit bien les options (la commande de remplacement sort avec 7 si FTL_NOVSYNC=1)
+    app.settings.cp["game"]["vsync"] = "off"
+    app.launch = (sys.executable, root)
+    rc = launch_game(app, [sys.executable, "-c", "import os,sys; sys.exit(7 if os.environ.get('FTL_NOVSYNC') == '1' else 3)"])
+    check(rc == 7, "launch_game execute le programme avec les options en variables d'environnement (code %s)" % rc)
+    app.launch = (os.path.join(root, "does-not-exist.exe"), root)
+    check(launch_game(app) == 1, "un jeu introuvable ne fait pas planter le lanceur (code de retour 1)")
+    app.settings.cp["game"]["vsync"] = "on"
     app.launch = None
     # annulation + echec
     app.state = "setup"; sc.ipa_state = "ok"; app.focus = "build"; app.demo = cmd + ["fail"]; app.key_action("ok")
