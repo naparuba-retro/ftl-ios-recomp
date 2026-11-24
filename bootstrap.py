@@ -77,6 +77,10 @@ def _extract(archive, dest_parent):
             for n in z.namelist():
                 if not os.path.realpath(os.path.join(dest_parent, n)).startswith(base): sys.exit("archive suspecte : " + n)
             z.extractall(dest_parent)
+            if not IS_WIN:                        # zipfile ne restaure pas les droits : Ghidra a besoin de ses scripts et du decompilateur executables
+                for i in z.infolist():
+                    mode = (i.external_attr >> 16) & 0o777
+                    if mode and not i.is_dir(): os.chmod(os.path.join(dest_parent, i.filename), mode | 0o600)
     else:
         with tarfile.open(archive) as t:
             try: t.extractall(dest_parent, filter="data")
