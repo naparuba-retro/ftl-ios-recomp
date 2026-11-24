@@ -29,6 +29,12 @@ DEPS = {
                     "sha256": "b03f477a1943673e02aca0f570e8030dffd536ce1f45cbc4d3326ec31159562e", "dir": "zig-x86_64-windows-0.17.1"},
         "linux": {"url": "https://ziglang.org/download/0.17.1/zig-x86_64-linux-0.17.1.tar.xz",
                   "sha256": "3581863e3cbcfd0fce0efc682ce7e9e93da96668a977791d356a26d2a7e9b17a", "dir": "zig-x86_64-linux-0.17.1"}},
+    # Zig sur PyPI (paquet "ziglang" : memes binaires 0.17.1) : le CDN de PyPI est ~170x plus rapide que ziglang.org (mesure : 25 Mo/s contre 0,14 Mo/s)
+    "zig_pypi": {
+        "windows": {"url": "https://files.pythonhosted.org/packages/c8/6c/2013114fa780f0cf490cdc98bdd5bf7dce706a5dbd86e50ec4132cf7d4b1/ziglang-0.17.1-py3-none-win_amd64.whl",
+                    "sha256": "69c3dfc3aff6a297ec4017aa904782c0e450eb988982d7f675d83edce27526fb", "dir": "zig-pypi-0.17.1"},
+        "linux": {"url": "https://files.pythonhosted.org/packages/59/e3/2a34676370a11c36b7cd04ffb2439c1089c0530cf4b01408c77cf7f8d9c3/ziglang-0.17.1-py3-none-manylinux_2_12_x86_64.manylinux2010_x86_64.musllinux_1_1_x86_64.whl",
+                  "sha256": "ea6cc5d87b033cf0aedfbc8f9549a908cae6c50ac31f1698188fa48a74524b54", "dir": "zig-pypi-0.17.1"}},
     "sdl2": {"url": "https://github.com/libsdl-org/SDL/releases/download/release-2.32.4/SDL2-2.32.4.tar.gz",
              "sha256": "f15b478253e1ff6dac62257ded225ff4e7d0c5230204ac3450f1144ee806f934", "dir": "SDL2-2.32.4"},
 }
@@ -105,8 +111,21 @@ def jdk():
     return _ensure("JDK", DEPS["jdk"][OSK], ["bin", "java" + (".exe" if IS_WIN else "")])
 
 def zig():
-    d = _ensure("Zig", DEPS["zig"][OSK], ["zig" + (".exe" if IS_WIN else "")])
-    return os.path.join(d, "zig" + (".exe" if IS_WIN else ""))
+    ext = ".exe" if IS_WIN else ""
+    spec = DEPS["zig_pypi"][OSK]; d = os.path.join(TOOLS, spec["dir"]); exe = os.path.join(d, "ziglang", "zig" + ext)
+    if os.path.exists(exe): return exe
+    off = os.path.join(TOOLS, DEPS["zig"][OSK]["dir"], "zig" + ext)           # deja telecharge depuis ziglang.org
+    if os.path.exists(off): return off
+    try:                                                                         # 1) roue PyPI (rapide)
+        arch = _get(spec["url"], os.path.join(TOOLS, "_dl", os.path.basename(spec["url"])), spec["sha256"])
+        shutil.rmtree(d, ignore_errors=True); log("extraction Zig (PyPI)"); _extract(arch, d)
+        if not os.path.exists(exe): raise RuntimeError("zig absent de la roue")
+        if not IS_WIN: os.chmod(exe, 0o755)
+        return exe
+    except (SystemExit, Exception) as e:
+        log("PyPI indisponible (%s) : repli sur ziglang.org" % e)
+    d = _ensure("Zig", DEPS["zig"][OSK], ["zig" + ext])                        # 2) site officiel
+    return os.path.join(d, "zig" + ext)
 
 def sdl2_include():
     """Dossier a passer en -I : contient SDL2/SDL.h (Linux)."""
