@@ -37,6 +37,20 @@ STAGES = ["extract", "ghidra", "lift", "patch", "compile", "game", "fr"]
 
 
 def log(*a): print("[build]", *a, flush=True)
+
+
+def be_gentle(c):
+    """Linux : le build tourne en priorite minimale (nice 19, ionice classe idle) et n'utilise que la moitie des coeurs :
+    la machine (ex. un Steam Deck en cours d'utilisation) reste reactive. Les sous-processus heritent de la priorite."""
+    c.jobs = c.args.jobs or (os.cpu_count() or 2)
+    if IS_WIN or c.args.no_nice: return
+    c.jobs = c.args.jobs or max(1, (os.cpu_count() or 2) // 2)
+    try: os.nice(19)
+    except OSError: pass
+    if shutil.which("ionice"):
+        try: subprocess.run(["ionice", "-c3", "-p", str(os.getpid())], capture_output=True)
+        except OSError: pass
+    log("priorite minimale (nice 19, ionice idle), %d tache(s) en parallele (--jobs / --no-nice pour changer)" % c.jobs)
 def die(msg): sys.exit("ERREUR : " + msg)
 def sha256(path):
     h = hashlib.sha256()
@@ -101,7 +115,7 @@ def ghidra_env(c):
     env = dict(os.environ)
     env["JAVA_HOME"] = c.jdk
     env["PATH"] = os.path.join(c.jdk, "bin") + os.pathsep + env.get("PATH", "")
-    env["JAVA_TOOL_OPTIONS"] = "-Dapplication.settingsdir=" + os.path.join(c.out, "gsettings")   # n'utilise pas vos reglages Ghidra
+    env["JAVA_TOOL_OPTIONS"] = "-Dapplication.settingsdir=" + os.path.join(c.out, "gsettings") + (" -XX:ActiveProcessorCount=%d" % c.jobs if not IS_WIN else "")   # n'utilise pas vos reglages Ghidra ; limite les threads de la JVM
     return env
 
 def headless(c, args, logname):
@@ -189,7 +203,7 @@ def st_compile_system(c):
         open(bat, "w").write("\r\n".join(lines) + "\r\n")
         run(["cmd", "/c", bat], logfile=os.path.join(c.out, "logs", "compile.log"))
     else:
-        run(["make", "-f", "Makefile.linux", "-j", str(os.cpu_count() or 2), "GENDIR=" + gen, "OBJDIR=" + obj, "OUT=" + os.path.join(binp, "ftl_linux")],
+        run(["make", "-f", "Makefile.linux", "-j", str(c.jobs), "GENDIR=" + gen, "OBJDIR=" + obj, "OUT=" + os.path.join(binp, "ftl_linux")],
             cwd=RECOMP, logfile=os.path.join(c.out, "logs", "compile.log"))
 
 
@@ -225,7 +239,7 @@ def st_compile(c):
         r = subprocess.run([zig, "cc", "-target", target] + flags + ["-c", src, "-o", o], env=env, capture_output=True, cwd=RECOMP)
         return None if r.returncode == 0 else (src, r.stderr.decode("utf-8", "replace")[-3000:])
     t0 = time.time(); fails = []
-    with cf.ThreadPoolExecutor(os.cpu_count() or 2) as ex:
+    with cf.ThreadPoolExecutor(c.jobs) as ex:
         for i, res in enumerate(ex.map(one, jobs)):
             if res: fails.append(res)
             if (i + 1) % 10 == 0: log("   %d / %d (%.0f s)" % (i + 1, len(jobs), time.time() - t0))
@@ -297,6 +311,8 @@ def main():
     ap.add_argument("--ghidra"); ap.add_argument("--jdk"); ap.add_argument("--pc-ftl-dat", help="ftl.dat de votre FTL PC (francais officiel), ou \"auto\" pour le chercher")
     ap.add_argument("--compiler", choices=["zig", "system"], default="zig", help="zig (telecharge, defaut) ou compilateur du systeme (Visual Studio / gcc+make)")
     ap.add_argument("--no-download", action="store_true", help="ne telecharge rien : utilise --ghidra/--jdk ou ./tools")
+    ap.add_argument("--jobs", type=int, help="nombre de taches en parallele (defaut : tous les coeurs ; la moitie sous Linux)")
+    ap.add_argument("--no-nice", action="store_true", help="Linux : ne pas baisser la priorite du build")
     ap.add_argument("--only"); ap.add_argument("--skip"); ap.add_argument("--skip-hash-check", action="store_true")
     ap.add_argument("--force", action="store_true", help="refait aussi Ghidra et Lift meme si deja faits")
     c = Ctx(); c.args = ap.parse_args(); c.out = os.path.abspath(c.args.out)
@@ -305,6 +321,7 @@ def main():
         if v and v != "auto": setattr(c.args, k, os.path.abspath(v))
     global NO_DL
     NO_DL = c.args.no_download
+    be_gentle(c)
     c.cfg = tomllib.load(open(os.path.join(RECOMP, "binary.toml"), "rb"))
     stages = c.args.only.split(",") if c.args.only else list(STAGES)
     if c.args.skip: stages = [s for s in stages if s not in c.args.skip.split(",")]

@@ -33,6 +33,7 @@ python build_from_ipa.py --ipa ... --pc-ftl-dat "C:/Games/FTL/ftl.dat.vanilla"  
 ```
 Le jeu prêt à lancer est dans `build/game/` (`lancer_ftl.bat` sous Windows, `run.sh` sous Linux).
 Étapes (`--only` / `--skip`) : `extract` → `ghidra` → `lift` → `patch` → `compile` → `game` → `fr`.
+Sous Linux, le build tourne en **priorité minimale** (nice 19, ionice idle) sur la moitié des cœurs seulement, pour ne pas gêner la machine (`--jobs N`, `--no-nice` pour changer).
 Durée : environ 15 minutes de calcul, plus les téléchargements du premier lancement. Les étapes Ghidra/Lift sont mémorisées (`--force` pour les refaire).
 
 ## Traduction française
