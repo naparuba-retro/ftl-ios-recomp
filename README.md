@@ -1,88 +1,95 @@
-# FTL (iPad 1.5.10) — port PC / Linux par recompilation statique
+# FTL (iPad 1.5.10) — native PC / Linux port by static recompilation
 
-Ce dépôt reconstruit **à partir de votre propre copie** de l'IPA de *FTL: Faster Than Light* (iPad, version 1.5.10) un exécutable natif
-pour Windows et Linux (Steam Deck). Le code ARM est traduit en C (« recompilation statique ») puis compilé avec un runtime hôte
-(fichiers, threads, OpenGL ES 2 → OpenGL de bureau, son, entrées). Une traduction française est incluse (voir plus bas).
+*[Version française](README.fr.md)*
 
-> **Aucun contenu du jeu n'est dans ce dépôt** : ni l'IPA, ni `ftl.dat`, ni le code C généré à partir du binaire, ni les images/sons.
-> Vous devez posséder le jeu. Tout ce qui est généré reste dans le dossier `build/` (ignoré par git).
+This repository builds a native executable for Windows and Linux (Steam Deck) **from your own copy** of the IPA of *FTL: Faster Than Light*
+(iPad, version 1.5.10). The ARM code is translated to C ("static recompilation") and compiled together with a host runtime
+(files, threads, OpenGL ES 2 → desktop OpenGL, sound, input). A French translation is included (see below).
 
-## Prérequis
-**Python 3.11+ et une connexion Internet. Rien d'autre à installer ni à télécharger à la main.**
-Au premier lancement, `bootstrap.py` récupère dans `./tools/` (ignoré par git), chaque archive étant vérifiée par SHA-256 :
+> **No game content is in this repository**: no IPA, no `ftl.dat`, no C code generated from the binary, no images or sounds.
+> You must own the game. Everything generated stays in the `build/` folder (ignored by git).
 
-| Dépendance | Rôle | Taille |
+## Requirements
+**Python 3.11+ and an Internet connection. Nothing else to install or download by hand.**
+On first run, `bootstrap.py` fetches the following into `./tools/` (ignored by git); every archive is verified by SHA-256:
+
+| Dependency | Purpose | Size |
 |---|---|---|
-| Ghidra 12.2 | analyse du binaire iOS | ≈ 570 Mo |
-| JDK Temurin 25 | fait tourner Ghidra | ≈ 140 Mo |
-| Zig 0.17.1 | compilateur C portable (Windows et Linux) | ≈ 60-100 Mo |
-| en-têtes SDL2 2.32.4 (Linux) | compilation du runtime | 8 Mo |
-| Pillow, fontTools (roues PyPI) | patch français | ≈ 10 Mo |
+| Ghidra 12.2 | analysis of the iOS binary | ≈ 570 MB |
+| Temurin JDK 25 | runs Ghidra | ≈ 140 MB |
+| Zig 0.17.1 | portable C compiler (Windows and Linux) | ≈ 60-100 MB |
+| SDL2 2.32.4 headers (Linux) | compiles the runtime | 8 MB |
+| Pillow, fontTools (PyPI wheels) | French patch | ≈ 10 MB |
 
-Sous Linux, le runtime SDL2 et OpenGL du système doit être présent (c'est le cas sur un Linux de bureau et sur le Steam Deck).
-Vous pouvez aussi fournir vos propres outils : `--ghidra DIR`, `--jdk DIR`, `--compiler system` (Visual Studio / gcc+make), `--no-download`.
+On Linux, the system SDL2 and OpenGL runtime must be present (it is on a desktop Linux and on the Steam Deck).
+You can also provide your own tools: `--ghidra DIR`, `--jdk DIR`, `--compiler system` (Visual Studio / gcc+make), `--no-download`.
 
-**Votre IPA** : `FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa` (version 1.5.10, **déchiffrée**), avec exactement le SHA-256 de
-[`work/recomp/binary.toml`](work/recomp/binary.toml) (`62bfa1cc…ea3e81b9`) : plusieurs adresses du binaire sont utilisées par le runtime.
+**Your IPA**: `FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa` (version 1.5.10, **decrypted**), with exactly the SHA-256 listed in
+[`work/recomp/binary.toml`](work/recomp/binary.toml) (`62bfa1cc…ea3e81b9`): several addresses of the binary are used by the runtime.
 
-## Utilisation simple : le lanceur graphique
+## Simple use: the graphical launcher
 ```
-python play.py        (Windows : double-clic sur play.bat ; Linux / Steam Deck : play.sh)
+python play.py        (Windows: double-click play.bat; Linux / Steam Deck: play.sh)
 ```
-Au **premier lancement** (aucun jeu construit), un écran guide en trois étapes : ton IPA (déposé dans le dossier `ipa/`, glissé dans la fenêtre, trouvé automatiquement
-dans Téléchargements, sur une clé USB..., ou choisi avec « Parcourir »), ton FTL PC pour le français (détecté tout seul s'il existe), puis **Construire** : une
-progression montre chaque étape. Ensuite l'écran **Jouer** lance le jeu (changement de langue et reconstruction possibles). Clavier, souris, **manette** (Steam Deck)
-et glisser-déposer sont gérés. Un bouton **OPTIONS** (présent sur chaque écran) permet de régler : fenêtre du jeu (Linux/Steam Deck), synchro verticale, compteur d'images/s, son, **enregistrement des parties** (pour reproduire un bug), langue et fenêtre du lanceur, ouverture des dossiers (sauvegardes, journaux, enregistrements) et **libération de l'espace disque** (Ghidra, Java, compilateur et fichiers de build, ~2 Go, une fois le jeu construit). Les réglages sont dans `settings.ini` et transmis au jeu au moment de le lancer.
-L'interface est en **anglais** par défaut (`--lang fr` ou `FTL_LANG=fr` pour le français). `python play.py --demo` montre le parcours avec un faux build ; `--shots DIR` écrit une capture de chaque écran ; `--selftest` teste les enchaînements.
-SDL2 (pysdl2) et deux polices libres (Press Start 2P, VT323 ; licence OFL) sont téléchargés dans `tools/` comme le reste.
+On the **first launch** (no game built yet), a screen walks you through three steps: your IPA (dropped in the `ipa/` folder, dragged onto the window,
+found automatically in Downloads, on a USB stick..., or picked with "Browse"), your PC copy of FTL for the French text (detected automatically if present),
+then **Build the game**: a progress bar shows each stage. After that, the **Play** screen starts the game (you can change language or rebuild).
+Keyboard, mouse, **gamepad** (Steam Deck) and drag-and-drop are supported. An **OPTIONS** button (on every screen) lets you set: game window mode
+(Linux/Steam Deck), vertical sync, FPS counter, sound, **game recording** (to reproduce a bug), launcher language and window, opening the folders
+(saves, logs, recordings) and **freeing disk space** (Ghidra, Java, compiler and build files, ~2 GB, once the game is built).
+Settings live in `settings.ini` and are passed to the game when it starts.
+The interface is in **English** by default (`--lang fr` or `FTL_LANG=fr` for French). `python play.py --demo` shows the flow with a fake build;
+`--shots DIR` writes a screenshot of every screen; `--selftest` tests the screen flows.
+SDL2 (pysdl2) and two free fonts (Press Start 2P, VT323; OFL licence) are downloaded into `tools/` like everything else.
 
-### Captures du lanceur
-(Les captures utilisent le fond généré par le lanceur ; sur ta machine, le fond est découpé de ton propre IPA.)
+### Launcher screenshots
+(The screenshots use the background generated by the launcher; on your machine the background is cut from your own IPA.)
 
-| Premier lancement | Prêt à construire |
+| First launch | Ready to build |
 |---|---|
-| ![Premier lancement](docs/screenshots/1_first_launch_empty.png) | ![Prêt à construire](docs/screenshots/2_ready_to_build.png) |
+| ![First launch](docs/screenshots/1_first_launch_empty.png) | ![Ready to build](docs/screenshots/2_ready_to_build.png) |
 
-| Construction en cours | Prêt à jouer |
+| Building | Ready to play |
 |---|---|
-| ![Construction](docs/screenshots/7_building.png) | ![Prêt à jouer](docs/screenshots/10_ready_to_play.png) |
+| ![Building](docs/screenshots/7_building.png) | ![Ready to play](docs/screenshots/10_ready_to_play.png) |
 
-| Options (anglais) | Options (français) |
+| Options (English) | Options (French) |
 |---|---|
 | ![Options](docs/screenshots/12_options.png) | ![Options FR](docs/screenshots/13_options_fr.png) |
 
-Autres écrans : [mauvais IPA](docs/screenshots/4_wrong_ipa.png), [pas de FTL PC](docs/screenshots/5_no_pc_ftl.png), [parcourir](docs/screenshots/6_browse.png), [erreur de build](docs/screenshots/9_error.png), [libérer l'espace](docs/screenshots/14_confirm_free_space.png).
+Other screens: [wrong IPA](docs/screenshots/4_wrong_ipa.png), [no PC FTL](docs/screenshots/5_no_pc_ftl.png), [browse](docs/screenshots/6_browse.png), [build error](docs/screenshots/9_error.png), [free up space](docs/screenshots/14_confirm_free_space.png).
 
-## Utilisation en ligne de commande
+## Command-line use
 ```
 python build_from_ipa.py --ipa FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa
-python build_from_ipa.py --ipa ... --pc-ftl-dat auto                                # avec la traduction française (cherche votre FTL PC)
-python build_from_ipa.py --ipa ... --pc-ftl-dat "C:/Games/FTL/ftl.dat.vanilla"     # ou indiquez le fichier
+python build_from_ipa.py --ipa ... --pc-ftl-dat auto                                # with the French translation (looks for your PC FTL)
+python build_from_ipa.py --ipa ... --pc-ftl-dat "C:/Games/FTL/ftl.dat.vanilla"     # or give the file
 ```
-Le jeu prêt à lancer est dans `build/game/` (`lancer_ftl.bat` sous Windows, `run.sh` sous Linux).
-Étapes (`--only` / `--skip`) : `extract` → `ghidra` → `lift` → `patch` → `compile` → `game` → `fr`.
-Sous Linux, le build tourne en **priorité minimale** (nice 19, ionice idle) sur la moitié des cœurs seulement, pour ne pas gêner la machine (`--jobs N`, `--no-nice` pour changer).
-Durée : environ 15 minutes de calcul, plus les téléchargements du premier lancement. Les étapes Ghidra/Lift sont mémorisées (`--force` pour les refaire).
+The game, ready to run, is in `build/game/` (`lancer_ftl.bat` on Windows, `run.sh` on Linux).
+Stages (`--only` / `--skip`): `extract` → `ghidra` → `lift` → `patch` → `compile` → `game` → `fr`.
+On Linux the build runs at **minimum priority** (nice 19, ionice idle) on half the cores only, so it does not disturb the machine (`--jobs N`, `--no-nice` to change that).
+Duration: about 15 minutes of computing, plus the downloads of the first run. The Ghidra/Lift stages are cached (`--force` to redo them).
 
-## Traduction française
-`--pc-ftl-dat` désigne le `ftl.dat` de **votre** version PC de FTL contenant le français officiel (vanilla, sans mod). Il n'est lu qu'en lecture seule.
-Avec `auto`, [`detect_pc_ftl.py`](detect_pc_ftl.py) cherche votre installation (GOG, Steam, bibliothèques du Steam Deck, Heroic, dossiers usuels), ouvre chaque archive pour vérifier la présence de `data/text-fr.xml` et préfère la version d'origine (`ftl.dat.vanilla`) à une version moddée (Multiverse). `python detect_pc_ftl.py` affiche ce qu'il trouve.
-Les textes (≈ 94 % des chaînes), les polices (accents) et 29 images de boutons/bandeaux sont repris ou recomposés ; voir [`work/fr/LISEZMOI.md`](work/fr/LISEZMOI.md).
-Restent en anglais : le texte dessiné dans les grands atlas (hangar, HUD) et quelques chaînes codées dans l'exécutable.
+## French translation
+`--pc-ftl-dat` points to the `ftl.dat` of **your** PC version of FTL that contains the official French text (vanilla, unmodded). It is only read, never written.
+With `auto`, [`detect_pc_ftl.py`](detect_pc_ftl.py) looks for your installation (GOG, Steam, Steam Deck libraries, Heroic, usual folders), opens each archive to check that
+`data/text-fr.xml` is present, and prefers the original version (`ftl.dat.vanilla`) over a modded one (Multiverse). `python detect_pc_ftl.py` prints what it finds.
+The texts (≈ 94 % of the strings), the fonts (accents) and 29 button/banner images are reused or recomposed; see [`work/fr/LISEZMOI.md`](work/fr/LISEZMOI.md) (in French).
+Still in English: text drawn inside the big atlases (hangar, HUD) and a few strings hard-coded in the executable.
 
-## Contenu du dépôt
-- `build_from_ipa.py` — chaîne complète.
-- `work/scripts/` — scripts Ghidra : `Lift.java` (le traducteur ARM → C), `FixSwitch.java` (tables de commutation), outils d'analyse.
-- `work/recomp/` — runtime hôte (`rt.c`, `hle_*.c`, `gl_host.c`+`gl_sdl.inc`, `plat.h` pour la portabilité Windows/Linux), `binary.toml`
-  (adresses propres au binaire), `patches_apres_lift.py`, scripts de compilation.
-- `work/fr/` — patch de traduction. `steamdeck/` — lanceurs Linux. `NOTES-ANDROID.md` — journal technique détaillé.
+## Repository contents
+- `build_from_ipa.py` — the whole pipeline.
+- `work/scripts/` — Ghidra scripts: `Lift.java` (the ARM → C translator), `FixSwitch.java` (switch tables), analysis tools.
+- `work/recomp/` — host runtime (`rt.c`, `hle_*.c`, `gl_host.c` + `gl_sdl.inc`, `plat.h` for Windows/Linux portability), `binary.toml`
+  (binary-specific addresses), `patches_apres_lift.py`, build scripts.
+- `work/fr/` — translation patch. `steamdeck/` — Linux launchers. `NOTES-ANDROID.md` — detailed technical log (in French).
 
-## Outils de test intégrés
-Variables d'environnement : `FTL_FRAMES=n` (s'arrête après n images), `FTL_SEED`, `FTL_FIXEDTIME=1`, `FTL_SHOT=a,b,c` (captures),
-`FTL_CLICK="image,x,y;…"`, `FTL_FPS=1`, `FTL_NOSOUND=1`, `FTL_WINDOWED=1` / `FTL_FULLSCREEN=1` (Linux).
-**Enregistrement / relecture** : `FTL_RECORD=auto` enregistre les entrées et la graine dans `replays/` ; `FTL_REPLAY=<dossier>` rejoue la partie à l'identique
-(utile pour reproduire un plantage).
+## Built-in test tools
+Environment variables: `FTL_FRAMES=n` (stop after n frames), `FTL_SEED`, `FTL_FIXEDTIME=1`, `FTL_SHOT=a,b,c` (screenshots),
+`FTL_CLICK="frame,x,y;…"`, `FTL_FPS=1`, `FTL_NOSOUND=1`, `FTL_WINDOWED=1` / `FTL_FULLSCREEN=1` (Linux).
+**Record / replay**: `FTL_RECORD=auto` records the inputs and the seed into `replays/`; `FTL_REPLAY=<folder>` replays the game exactly
+(useful to reproduce a crash).
 
-## Licence et mentions
-Le code de ce dépôt (traducteur, runtime, scripts) est destiné à la préservation et à l'interopérabilité ; la licence reste à définir par l'auteur.
-*FTL: Faster Than Light* appartient à Subset Games. La bibliothèque SIL, utilisée par le jeu, a sa propre licence et n'est pas incluse.
+## Licence and notices
+The code in this repository (translator, runtime, scripts) is meant for preservation and interoperability; the licence is still to be chosen by the author.
+*FTL: Faster Than Light* belongs to Subset Games. The SIL library, used by the game, has its own licence and is not included.
