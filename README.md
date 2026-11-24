@@ -8,17 +8,22 @@ pour Windows et Linux (Steam Deck). Le code ARM est traduit en C (« recompilati
 > Vous devez posséder le jeu. Tout ce qui est généré reste dans le dossier `build/` (ignoré par git).
 
 ## Prérequis
-| | Windows | Linux |
-|---|---|---|
-| Python | 3.11+ | 3.11+ |
-| Ghidra | 12.2 (https://ghidra-sre.org) | idem |
-| JDK | 21+ (ex. Temurin) | idem |
-| Compilateur | Visual Studio Build Tools (C++ x64) | gcc, make, `libsdl2-dev`, `libgl-dev` |
-| L'IPA | `FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa`, **déchiffré** | idem |
+**Python 3.11+ et une connexion Internet. Rien d'autre à installer ni à télécharger à la main.**
+Au premier lancement, `bootstrap.py` récupère dans `./tools/` (ignoré par git), chaque archive étant vérifiée par SHA-256 :
 
-L'IPA doit avoir exactement le SHA-256 indiqué dans [`work/recomp/binary.toml`](work/recomp/binary.toml) (`62bfa1cc…ea3e81b9`) :
-plusieurs adresses du binaire sont utilisées par le runtime. Ghidra et le JDK peuvent être posés dans `./tools/` (`ghidra_*/`, `jdk*/`)
-ou indiqués par `--ghidra` / `--jdk` (ou `GHIDRA_INSTALL_DIR` / `JAVA_HOME`).
+| Dépendance | Rôle | Taille |
+|---|---|---|
+| Ghidra 12.2 | analyse du binaire iOS | ≈ 570 Mo |
+| JDK Temurin 25 | fait tourner Ghidra | ≈ 140 Mo |
+| Zig 0.17.1 | compilateur C portable (Windows et Linux) | ≈ 60-100 Mo |
+| en-têtes SDL2 2.32.4 (Linux) | compilation du runtime | 8 Mo |
+| Pillow, fontTools (roues PyPI) | patch français | ≈ 10 Mo |
+
+Sous Linux, le runtime SDL2 et OpenGL du système doit être présent (c'est le cas sur un Linux de bureau et sur le Steam Deck).
+Vous pouvez aussi fournir vos propres outils : `--ghidra DIR`, `--jdk DIR`, `--compiler system` (Visual Studio / gcc+make), `--no-download`.
+
+**Votre IPA** : `FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa` (version 1.5.10, **déchiffrée**), avec exactement le SHA-256 de
+[`work/recomp/binary.toml`](work/recomp/binary.toml) (`62bfa1cc…ea3e81b9`) : plusieurs adresses du binaire sont utilisées par le runtime.
 
 ## Utilisation
 ```
@@ -27,7 +32,7 @@ python build_from_ipa.py --ipa ... --pc-ftl-dat "C:/Games/FTL/ftl.dat.vanilla"  
 ```
 Le jeu prêt à lancer est dans `build/game/` (`lancer_ftl.bat` sous Windows, `run.sh` sous Linux).
 Étapes (`--only` / `--skip`) : `extract` → `ghidra` → `lift` → `patch` → `compile` → `game` → `fr`.
-Les étapes Ghidra/Lift sont longues et mémorisées (`--force` pour les refaire).
+Durée : environ 15 minutes de calcul, plus les téléchargements du premier lancement. Les étapes Ghidra/Lift sont mémorisées (`--force` pour les refaire).
 
 ## Traduction française
 `--pc-ftl-dat` désigne le `ftl.dat` de **votre** version PC de FTL contenant le français officiel (vanilla, sans mod). Il n'est lu qu'en lecture seule.

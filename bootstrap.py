@@ -71,7 +71,7 @@ def _get(url, dest, sha256):
 
 def _extract(archive, dest_parent):
     os.makedirs(dest_parent, exist_ok=True)
-    if archive.endswith(".zip"):
+    if archive.endswith((".zip", ".whl")):   # une roue Python est un zip
         with zipfile.ZipFile(archive) as z:
             base = os.path.realpath(dest_parent)
             for n in z.namelist():
