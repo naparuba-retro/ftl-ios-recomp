@@ -1,0 +1,72 @@
+name: Packages
+
+# Builds the downloadable launcher packages (no game content inside: the game is built on the user's machine from their own IPA).
+#   - Windows: a portable .zip with its own Python
+#   - Steam Deck / Linux: an .AppImage with its own Python
+# Run it by hand (Actions tab -> Packages -> Run workflow), on a pull request touching the packaging, or by pushing a tag "v*" (which also publishes a release).
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ["packaging/**", ".github/workflows/release.yml", "launcher/**", "play.py", "bootstrap.py"]
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('dev-{0}', github.run_number) }}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Build the zip
+        shell: bash
+        run: python packaging/make_dist.py windows --version "${VERSION#v}" --out out
+      - name: Smoke test (unzip, run the launcher self-test with the bundled Python)
+        shell: bash
+        run: |
+          mkdir smoke && cd smoke && unzip -q ../out/*.zip && cd FTL-Recomp-*
+          ./python/python.exe -I play.py --selftest | tail -3
+          ./python/python.exe -I play.py --selftest | grep -q "TOUT OK"
+      - uses: actions/upload-artifact@v4
+        with: { name: windows-zip, path: out/*.zip, if-no-files-found: error }
+
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Get appimagetool (pinned)
+        run: |
+          curl -sSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool" | sha256sum -c
+          chmod +x appimagetool
+      - name: Build the AppImage
+        run: python packaging/make_dist.py linux --version "${VERSION#v}" --out out --appimagetool "$PWD/appimagetool"
+      - name: Smoke test (run the launcher self-test from the AppImage, like on a machine without FUSE)
+        run: |
+          export APPIMAGE_EXTRACT_AND_RUN=1 FTL_HOME="$RUNNER_TEMP/ftl-home"
+          ./out/*.AppImage --selftest | tail -3
+          ./out/*.AppImage --selftest | grep -q "TOUT OK"
+      - uses: actions/upload-artifact@v4
+        with: { name: linux-appimage, path: out/*.AppImage, if-no-files-found: error }
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, linux]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dl, merge-multiple: true }
+      - name: Publish the release
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          cd dl && sha256sum * > SHA256SUMS.txt
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" \
+            --notes "Launcher packages. They contain no game content: you need your own FTL iPad 1.5.10 IPA (see the README). Windows: unzip, run play.bat. Steam Deck / Linux: chmod +x the AppImage and run it." *
