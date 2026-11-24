@@ -291,6 +291,8 @@ def main():
     ap.add_argument("--only"); ap.add_argument("--skip"); ap.add_argument("--skip-hash-check", action="store_true")
     ap.add_argument("--force", action="store_true", help="refait aussi Ghidra et Lift meme si deja faits")
     c = Ctx(); c.args = ap.parse_args(); c.out = os.path.abspath(c.args.out)
+    for k in ("ipa", "pc_ftl_dat", "ghidra", "jdk"):      # chemins absolus : les sous-processus changent de dossier
+        if getattr(c.args, k): setattr(c.args, k, os.path.abspath(getattr(c.args, k)))
     global NO_DL
     NO_DL = c.args.no_download
     c.cfg = tomllib.load(open(os.path.join(RECOMP, "binary.toml"), "rb"))
