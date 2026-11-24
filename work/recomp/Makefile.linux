@@ -1,23 +1,36 @@
-# Build Linux (Steam Deck) du port FTL : make -f Makefile.linux -j4
-# Sources : ../ (runtime) + genj/ (code genere). Sortie : ftl_linux
+# Build Linux (Steam Deck) du port FTL.
+#   make -f Makefile.linux -j4                       (dossiers par defaut : genj/ et obj/, a cote du Makefile)
+#   make -f Makefile.linux GENDIR=/chemin/gen OBJDIR=/chemin/obj OUT=/chemin/ftl_linux -j4   (utilise par build_from_ipa.py)
 CC      ?= gcc
 OPT     ?= -O2
-CFLAGS  := $(OPT) -std=gnu17 -fno-strict-aliasing -fwrapv -ffp-contract=off -fno-delete-null-pointer-checks -fpermissive -w -pthread -I genj -I . $(shell sdl2-config --cflags)
+GENDIR  ?= genj
+OBJDIR  ?= obj
+OUT     ?= ftl_linux
+CFLAGS  := $(OPT) -std=gnu17 -fno-strict-aliasing -fwrapv -ffp-contract=off -fno-delete-null-pointer-checks -fpermissive -w -pthread -I $(GENDIR) -I . $(shell sdl2-config --cflags)
 LDLIBS  := $(shell sdl2-config --libs) -lGL -lm -ldl -pthread
 
-GEN := $(wildcard genj/gen_*.c)
-RT  := rt.c hle_libc.c hle_string.c hle_sys.c hle_sound.c hle_stream.c hle_thread.c hle_rbtree.c neon.c gl_host.c pvrtc.c main_game.c stubs.c
-OBJ := $(patsubst %.c,obj/%.o,$(GEN) $(RT))
+GEN := $(wildcard $(GENDIR)/gen_*.c)
+RT  := rt.c hle_libc.c hle_string.c hle_sys.c hle_sound.c hle_stream.c hle_thread.c hle_rbtree.c neon.c gl_host.c pvrtc.c main_game.c
+OBJ := $(patsubst $(GENDIR)/%.c,$(OBJDIR)/gen/%.o,$(GEN)) $(patsubst %.c,$(OBJDIR)/rt/%.o,$(RT)) $(OBJDIR)/rt/stubs.o
 
-ftl_linux: $(OBJ)
+$(OUT): $(OBJ)
 	$(CC) -o $@ $(OBJ) $(LDLIBS)
 
-stubs.c: make_stubs.py genj/gen_ext.h hle_libc.c hle_string.c hle_sys.c hle_sound.c hle_stream.c hle_thread.c hle_rbtree.c gl_host.c
-	python3 make_stubs.py genj/gen_ext.h hle_libc.c hle_string.c hle_sys.c hle_sound.c hle_stream.c hle_thread.c hle_rbtree.c gl_host.c > stubs.c
+$(OBJDIR)/stubs.c: make_stubs.py $(GENDIR)/gen_ext.h hle_libc.c hle_string.c hle_sys.c hle_sound.c hle_stream.c hle_thread.c hle_rbtree.c gl_host.c
+	@mkdir -p $(OBJDIR)
+	python3 make_stubs.py $(GENDIR)/gen_ext.h hle_libc.c hle_string.c hle_sys.c hle_sound.c hle_stream.c hle_thread.c hle_rbtree.c gl_host.c > $@
 
-obj/%.o: %.c plat.h rt.h
+$(OBJDIR)/rt/stubs.o: $(OBJDIR)/stubs.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/gen/%.o: $(GENDIR)/%.c $(GENDIR)/binary_config.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/rt/%.o: %.c plat.h rt.h $(GENDIR)/binary_config.h
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf obj ftl_linux stubs.c
+	rm -rf $(OBJDIR) $(OUT)

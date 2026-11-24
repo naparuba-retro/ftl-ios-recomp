@@ -3,13 +3,14 @@
  * Disposition invitee : un std::string est un pointeur (4 octets) vers les caracteres ;
  * juste avant : { uint32 longueur; uint32 capacite; int32 compteur_de_references } (12 octets).
  * Representation vide partagee : symbole _S_empty_rep_storage, dont l'adresse est lue dans
- * l'emplacement de pointeur non-lazy 0x0026c498 du binaire (zone zero-initialisee). */
+ * l'emplacement de pointeur non-lazy BIN_EMPTY_SLOT (binary.toml) du binaire (zone zero-initialisee). */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "rt.h"
+#include "binary_config.h"
 
-#define EMPTY_SLOT 0x0026c498u
+#define EMPTY_SLOT BIN_EMPTY_SLOT
 #define NPOS 0xFFFFFFFFu
 
 static uint32_t empty_rep(void) { return M32(EMPTY_SLOT); }

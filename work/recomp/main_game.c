@@ -82,8 +82,9 @@ void S_sil__main(void);
 void hle_stream_init_data(void);
 int host_window_init(int w, int h);
 
-#define MOD_INIT_START 0x0026c630u
-#define MOD_INIT_SIZE 408u
+#include "binary_config.h"   /* adresses propres au binaire : binary.toml */
+#define MOD_INIT_START BIN_MOD_INIT_START
+#define MOD_INIT_SIZE BIN_MOD_INIT_SIZE
 
 static int game_main(int argc, char **argv)
 {
@@ -123,7 +124,7 @@ static int game_main(int argc, char **argv)
     M32(argv_a + 4) = 0;
     R32(REG_r0) = 1;
     R32(REG_r1) = argv_a;
-    R32(REG_r2) = 0x0000bbe8u;  /* sil_main (FTL) : 3e argument de sil__main dans cette version de SIL */
+    R32(REG_r2) = BIN_SIL_MAIN;  /* sil_main (FTL) : 3e argument de sil__main dans cette version de SIL */
     fprintf(stderr, "sil__main...\n");
     fflush(stderr);
     S_sil__main();

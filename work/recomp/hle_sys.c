@@ -7,6 +7,7 @@
 #include <string.h>
 #include <time.h>
 #include "rt.h"
+#include "binary_config.h"   /* adresses propres au binaire (binary.toml) */
 
 #define SYS(name) void ext__sys_##name(void)
 
@@ -223,7 +224,7 @@ SYS(file_seek)
  * Les decalages viennent de l'index de ftl.dat (ftl_dat.py). */
 typedef struct { const char *file; int64_t off, size; uint8_t *data; int loaded; int virt; int64_t idx_pos, blob_len; } Ovr;
 static Ovr ovrs[] = {
-    { "override/24.font",                         0, 67112, NULL, 0, 1, 26276, 0 },
+    { "override/24.font",                         0, BIN_FONT24_SIZE, NULL, 0, 1, BIN_FONT24_IDX_POS, 0 },
 };
 static void ovr_load(Ovr *o)
 {
@@ -423,12 +424,12 @@ SYS(userdata_get_data_path)
 }
 /* sys_userdata_perform (SIL 0.3, structure SysUserDataParams ARM32) : sauvegardes, reglages et fichiers de donnees
  * dans ./savedata/ (memes noms que sysdep/ios/userdata.c : save/save-NNNN.bin, settings.bin, stats.bin). */
-extern void f_001e1190(void);   /* mem_alloc(size, align, flags) du jeu */
+extern void BIN_FN_MEM_ALLOC(void);   /* mem_alloc(size, align, flags) du jeu (binary.toml) */
 static uint32_t guest_mem_alloc(uint32_t size)
 {
     uint8_t sv[REGS_SIZE]; memcpy(sv, REGS, REGS_SIZE);
     R32(REG_r0) = size; R32(REG_r1) = 0; R32(REG_r2) = 0; R32(REG_r3) = 0;
-    f_001e1190();
+    BIN_FN_MEM_ALLOC();
     uint32_t r = R32(REG_r0);
     memcpy(REGS, sv, REGS_SIZE);
     return r;

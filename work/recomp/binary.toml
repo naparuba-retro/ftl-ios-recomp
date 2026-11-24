@@ -1,0 +1,28 @@
+# Points propres a CE binaire (FTL iPad 1.5.10, iOS 6.0, armv7) : adresses du binaire iOS d'origine,
+# utilisees par le runtime hote. Ce fichier est lu par gen_binary_config.py, qui ecrit <gen>/binary_config.h.
+# Si le binaire change (autre version), c'est ici (et dans patches_apres_lift.py) qu'il faut adapter.
+
+[source]
+ipa_name       = "FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa"
+ipa_sha256     = "62bfa1ccb511479665bbcf73d8a9fca3c6606391e94d68ca9275eb5fea3e81b9"
+binary_sha256  = "55524c48ab50853ab05d800c32b350b6c82f38e51a461a8dd2be414f89ab26ba"   # Payload/FTL.app/FTL
+ghidra_version = "12.2"
+
+[runtime]                       # adresses dans l'image du binaire
+mod_init_start = 0x0026c630     # __mod_init_func : initialiseurs statiques C++ (dyld les executerait avant main)
+mod_init_size  = 408            # octets
+sil_main       = 0x0000bbe8     # sil_main (FTL), 3e argument de sil__main dans cette version de SIL
+empty_slot     = 0x0026c498     # pointeur non-lazy vers _S_empty_rep_storage (std::string vide partage, HLE de hle_string.c)
+mem_alloc      = 0x001e1190     # mem_alloc(size, align, flags) du jeu (chargements userdata)
+
+[debug]                         # facultatif : sondes de diagnostic de rt.c (retirer pour desactiver)
+time_now    = 0x001e811c        # lecture brute de l'horloge dans CFPS::OnLoop
+damage_hull = 0x0008650c        # ShipManager::DamageHull (FTL_KILLENEMY)
+
+[ftl_dat]                       # ressource remplacee par l'extension virtuelle de hle_sys.c (override/24.font)
+font24_name = "fonts/24.font"   # l'emplacement dans l'index et la taille d'origine sont lus dans ftl.dat par gen_binary_config.py
+
+[lift]                          # arguments passes a Lift.java apres le dossier de sortie
+mode      = "ALL"
+overrides = ["_sys_file_", "_sys_dir_", "_sys_time_", "_sys_thread_", "_sys_mutex_", "_sys_semaphore_", "_sys_userdata_",
+             "_sys_input_", "_sys_sound_", "_sys_last_error", "_sys_reset_idle_timer", "_ios_"]

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "rt.h"
+#include "binary_config.h"
 
 uint8_t *MEM;
 RT_TLS uint8_t REGS[REGS_SIZE];
@@ -245,8 +246,10 @@ void rt_trace_enter(uint32_t addr)
             }
             if (!strcmp(n, "CFPS::OnLoop")) {
                 static int c2; if ((c2++ % 120) == 1) {
-                    extern void f_001e811c(void); uint8_t sv[REGS_SIZE]; memcpy(sv, REGS, REGS_SIZE);
-                    f_001e811c(); fprintf(stderr, "[time_now brut r0=%08x r1=%08x d18=%016llx d16=%016llx]\n", R32(REG_r0), R32(REG_r1), (unsigned long long)*(uint64_t *)(REGS + 0x390), (unsigned long long)*(uint64_t *)(REGS + 0x380)); memcpy(REGS, sv, REGS_SIZE);
+#ifdef BIN_FN_TIME_NOW
+                    extern void BIN_FN_TIME_NOW(void); uint8_t sv[REGS_SIZE]; memcpy(sv, REGS, REGS_SIZE);
+                    BIN_FN_TIME_NOW(); fprintf(stderr, "[time_now brut r0=%08x r1=%08x d18=%016llx d16=%016llx]\n", R32(REG_r0), R32(REG_r1), (unsigned long long)*(uint64_t *)(REGS + 0x390), (unsigned long long)*(uint64_t *)(REGS + 0x380)); memcpy(REGS, sv, REGS_SIZE);
+#endif
                 }
                 if ((c2 % 120) == 1 && 0) {
                     uint32_t t = R32(REG_r0); double a, b2; float f; uint64_t u = *(uint64_t *)(MEM + t + 4), w = *(uint64_t *)(MEM + t + 0xc); uint32_t v = M32(t + 0x14);
@@ -305,10 +308,13 @@ void rt_trace_enter(uint32_t addr)
             if (!strcmp(n, "CFPS::OnLoop")) {
                 extern volatile int g_frames; extern uint32_t g_player_ship, g_other_ship; static int done; const char *e = getenv("FTL_KILLENEMY");
                 if (e && !done && g_frames >= atoi(e) && g_other_ship) {
-                    done = 1; extern void f_0008650c(void); uint8_t sv[REGS_SIZE]; memcpy(sv, REGS, REGS_SIZE);
+                    done = 1;
+#ifdef BIN_FN_DAMAGE_HULL
+                    extern void BIN_FN_DAMAGE_HULL(void); uint8_t sv[REGS_SIZE]; memcpy(sv, REGS, REGS_SIZE);
                     R32(REG_r0) = g_other_ship; R32(REG_r1) = 200; R32(REG_r2) = 1;
                     fprintf(stderr, "[TEST : degats massifs sur le vaisseau ennemi %08x a l'image %d]\n", g_other_ship, g_frames);
-                    f_0008650c(); memcpy(REGS, sv, REGS_SIZE);
+                    BIN_FN_DAMAGE_HULL(); memcpy(REGS, sv, REGS_SIZE);
+#endif
                 }
             }
             if (!strcmp(n, "_userdata_save_data") || !strcmp(n, "_userdata_load_data") || !strcmp(n, "_userdata_delete_data")) {

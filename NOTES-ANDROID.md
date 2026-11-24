@@ -227,3 +227,8 @@ Dossier de code généré courant : `workecomp\geng` (les `gen`, `genb`..`genf`
 ## 21. Boutons en francais
 - Boutons = images .tex dans ftl.dat (img/main_menus/*, img/pause_*.tex, autopause, advanced_warning), pas du code. En-tete .tex : 'TEX\n', version, format 8 (BGRA8), w,h (u16 BE @8), 00010000, 00000020, taille pixels (u32 @20), puis pixels BGRA. work/fr/make_buttons_fr.py convertit les img/loc-fr/*.png du PC (29 images). Menu : le jeu place chaque bouton a gauche fixe -> taille iOS conservee, texte aligne a droite et reduit si trop large.
 - Restent en anglais : textes dessines dans les atlas (hangar, HUD, panneaux), chargement, MISS/RESIST, carte ; a traiter en redessinant avec une police pixel (a decider).
+
+## 22. Reconstruction depuis l'IPA (build_from_ipa.py)
+- `python build_from_ipa.py --ipa <IPA> [--pc-ftl-dat <ftl.dat vanilla PC>]` : extract -> ghidra (import + analyse auto + FixSwitch) -> lift -> patch (patches_apres_lift + binary_config.h) -> compile (VS ou gcc) -> game -> fr. Adresses propres au binaire dans work/recomp/binary.toml.
+- Valide dans _test_build/ (copie jetable du depot, IPA/Ghidra/JDK en lecture seule) : les 86 fichiers generes (gen_funcs, tables, mem_*.bin) sont identiques a l'octet a work/recomp/genj ; l'executable reconstruit rejoue les 14 captures du scenario de reference de facon identique. ftl.dat francais et exe different en octets (horodatage fontTools / PDB) mais pas en comportement ; override/24.font identique.
+- Duree mesuree : import+analyse+FixSwitch+Lift de l'ordre de quelques minutes ; compilation ~4 min ; total ~15 min.

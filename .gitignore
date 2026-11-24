@@ -73,3 +73,7 @@ __pycache__/
 *.lock
 *.rep
 *.gpr
+
+# === Tests de reconstruction (copie jetable) ===
+_test_build/
+build/
