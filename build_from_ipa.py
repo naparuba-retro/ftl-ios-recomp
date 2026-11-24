@@ -267,7 +267,16 @@ def st_game(c):
 
 def st_fr(c):
     pc = c.args.pc_ftl_dat
-    if not pc: return log("fr : ignore (pas de --pc-ftl-dat)")
+    if not pc: return log("fr : ignore (pas de --pc-ftl-dat ; --pc-ftl-dat auto pour chercher votre FTL PC)")
+    import detect_pc_ftl
+    if pc == "auto":
+        b = detect_pc_ftl.best()
+        if not b: return log("fr : ignore, aucune installation de FTL PC avec le francais trouvee (donnez --pc-ftl-dat <chemin>)")
+        pc = b["path"]; log("FTL PC detecte (%s) : %s" % (b["store"], pc))
+    else:
+        ok, msg = detect_pc_ftl.check_file(pc)
+        if not ok: die("--pc-ftl-dat : " + msg)
+        log("--pc-ftl-dat : " + msg)
     g = os.path.join(c.out, "game"); fo = os.path.join(c.out, "fr"); shutil.rmtree(fo, ignore_errors=True)
     en = os.path.join(c.out, "ipa", "ftl.dat")
     py = [sys.executable]
@@ -285,14 +294,15 @@ def main():
     except Exception: pass
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ipa"); ap.add_argument("--out", default=os.path.join(ROOT, "build"))
-    ap.add_argument("--ghidra"); ap.add_argument("--jdk"); ap.add_argument("--pc-ftl-dat")
+    ap.add_argument("--ghidra"); ap.add_argument("--jdk"); ap.add_argument("--pc-ftl-dat", help="ftl.dat de votre FTL PC (francais officiel), ou \"auto\" pour le chercher")
     ap.add_argument("--compiler", choices=["zig", "system"], default="zig", help="zig (telecharge, defaut) ou compilateur du systeme (Visual Studio / gcc+make)")
     ap.add_argument("--no-download", action="store_true", help="ne telecharge rien : utilise --ghidra/--jdk ou ./tools")
     ap.add_argument("--only"); ap.add_argument("--skip"); ap.add_argument("--skip-hash-check", action="store_true")
     ap.add_argument("--force", action="store_true", help="refait aussi Ghidra et Lift meme si deja faits")
     c = Ctx(); c.args = ap.parse_args(); c.out = os.path.abspath(c.args.out)
     for k in ("ipa", "pc_ftl_dat", "ghidra", "jdk"):      # chemins absolus : les sous-processus changent de dossier
-        if getattr(c.args, k): setattr(c.args, k, os.path.abspath(getattr(c.args, k)))
+        v = getattr(c.args, k)
+        if v and v != "auto": setattr(c.args, k, os.path.abspath(v))
     global NO_DL
     NO_DL = c.args.no_download
     c.cfg = tomllib.load(open(os.path.join(RECOMP, "binary.toml"), "rb"))

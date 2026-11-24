@@ -28,7 +28,8 @@ Vous pouvez aussi fournir vos propres outils : `--ghidra DIR`, `--jdk DIR`, `--c
 ## Utilisation
 ```
 python build_from_ipa.py --ipa FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa
-python build_from_ipa.py --ipa ... --pc-ftl-dat "C:/Games/FTL/ftl.dat.vanilla"     # avec la traduction française
+python build_from_ipa.py --ipa ... --pc-ftl-dat auto                                # avec la traduction française (cherche votre FTL PC)
+python build_from_ipa.py --ipa ... --pc-ftl-dat "C:/Games/FTL/ftl.dat.vanilla"     # ou indiquez le fichier
 ```
 Le jeu prêt à lancer est dans `build/game/` (`lancer_ftl.bat` sous Windows, `run.sh` sous Linux).
 Étapes (`--only` / `--skip`) : `extract` → `ghidra` → `lift` → `patch` → `compile` → `game` → `fr`.
@@ -36,6 +37,7 @@ Durée : environ 15 minutes de calcul, plus les téléchargements du premier lan
 
 ## Traduction française
 `--pc-ftl-dat` désigne le `ftl.dat` de **votre** version PC de FTL contenant le français officiel (vanilla, sans mod). Il n'est lu qu'en lecture seule.
+Avec `auto`, [`detect_pc_ftl.py`](detect_pc_ftl.py) cherche votre installation (GOG, Steam, bibliothèques du Steam Deck, Heroic, dossiers usuels), ouvre chaque archive pour vérifier la présence de `data/text-fr.xml` et préfère la version d'origine (`ftl.dat.vanilla`) à une version moddée (Multiverse). `python detect_pc_ftl.py` affiche ce qu'il trouve.
 Les textes (≈ 94 % des chaînes), les polices (accents) et 29 images de boutons/bandeaux sont repris ou recomposés ; voir [`work/fr/LISEZMOI.md`](work/fr/LISEZMOI.md).
 Restent en anglais : le texte dessiné dans les grands atlas (hangar, HUD) et quelques chaînes codées dans l'exécutable.
 
