@@ -35,6 +35,8 @@ class App:
         self.next_rescan = 0.0; self.quit = False; self.launch = None; self.focus_set_once = False
         ok, self.exe, self.game_dir = scan.game_state(root)
         if ok: self.state = "ready"
+        self.bg_cache = os.path.join(root, "build", "ui_cache", "menu_bg.bmp"); self.bg_thread = None; self.bg_state = "none"   # none | cutting | ready | failed
+        if os.path.isfile(self.bg_cache) and ui.load_photo(self.bg_cache): self.bg_state = "ready"
 
     # ------------------------------------------------------------ widgets / focus
     def add(self, wid, label, x, y, w, h, enabled=True, primary=False, small=False):
@@ -224,6 +226,7 @@ class App:
     # ------------------------------------------------------------ images
     def draw(self, dt):
         ui = self.ui; T = self.T
+        self.update_background()
         self.widgets = []
         ui.background(dt)
         st = self.state
@@ -239,6 +242,19 @@ class App:
 
     mouse = (0, 0)
     copied_until = 0.0
+
+    def update_background(self):
+        """Des que l'IPA est reconnu, on en decoupe l'image du menu du jeu (en arriere-plan) pour en faire le fond d'ecran."""
+        s = self.scanner
+        if self.bg_state == "none" and s.ipa_state == "ok" and s.ipa_path and os.path.isfile(s.ipa_path):
+            self.bg_state = "cutting"
+            def job():
+                from . import bg
+                try: self.bg_state = "cut" if bg.cut_from_ipa(s.ipa_path, self.bg_cache) else "failed"
+                except Exception: self.bg_state = "failed"
+            self.bg_thread = __import__("threading").Thread(target=job, daemon=True); self.bg_thread.start()
+        elif self.bg_state == "cut":
+            self.bg_state = "ready" if self.ui.load_photo(self.bg_cache) else "failed"
 
     def hint(self, text):
         self.ui.text(text, W // 2, H - 34, U.DIM, 24, anchor="c")

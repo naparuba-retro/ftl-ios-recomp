@@ -30,6 +30,7 @@ class UI:
         self.t = 0.0
         rnd = random.Random(1337)
         self.stars = [(rnd.randrange(W), rnd.randrange(H), rnd.choice((1, 1, 1, 2, 2, 3)), rnd.random() * 6.28) for _ in range(170)]
+        self.photo = None; self.proc = None; self.photo_size = (1024, 768)
 
     # ------------------------------------------------------------ primitives
     def color(self, c, a=255):
@@ -43,13 +44,12 @@ class UI:
     def frame(self, x, y, w, h, c, th=2):
         self.rect(x, y, w, th, c); self.rect(x, y + h - th, w, th, c); self.rect(x, y, th, h, c); self.rect(x + w - th, y, th, h, c)
 
-    def panel(self, x, y, w, h, border=BORDER, fill=PANEL, th=2, cut=8, a=235):
-        """Panneau a coins coupes (comme les cadres de FTL)."""
-        self.rect(x, y, w, h, fill, a)
-        self.frame(x, y, w, h, border, th)
-        for cx, cy in ((x, y), (x + w - cut, y), (x, y + h - cut), (x + w - cut, y + h - cut)):
-            self.rect(cx, cy, cut, cut, BG)                       # gomme les coins
-        for i in range(0, cut, th):                                 # diagonales
+    def panel(self, x, y, w, h, border=BORDER, fill=PANEL, th=2, cut=8, a=178):
+        """Panneau a coins coupes (comme les cadres de FTL), translucide : le decor se voit a travers."""
+        self.rect(x + cut, y, w - 2 * cut, h, fill, a); self.rect(x, y + cut, cut, h - 2 * cut, fill, a); self.rect(x + w - cut, y + cut, cut, h - 2 * cut, fill, a)
+        self.rect(x + cut, y, w - 2 * cut, th, border); self.rect(x + cut, y + h - th, w - 2 * cut, th, border)          # bords sans les coins
+        self.rect(x, y + cut, th, h - 2 * cut, border); self.rect(x + w - th, y + cut, th, h - 2 * cut, border)
+        for i in range(0, cut, th):                                                                                      # diagonales
             self.rect(x + cut - i - th, y + i, th, th, border); self.rect(x + w - cut + i, y + i, th, th, border)
             self.rect(x + cut - i - th, y + h - i - th, th, th, border); self.rect(x + w - cut + i, y + h - i - th, th, th, border)
 
@@ -134,16 +134,50 @@ class UI:
         return y
 
     # ------------------------------------------------------------ fond, widgets
+    # ------------------------------------------------------------ fonds
+    def load_photo(self, path):
+        """Image du menu du jeu, decoupee de l'IPA de l'utilisateur (voir bg.py)."""
+        try:
+            surf = sdl2.SDL_LoadBMP_RW(sdl2.SDL_RWFromFile(path.encode(), b"rb"), 1)
+            if not surf: return False
+            self.photo_size = (surf.contents.w, surf.contents.h)
+            self.photo = sdl2.SDL_CreateTextureFromSurface(self.r, surf)
+            sdl2.SDL_FreeSurface(surf)
+            return bool(self.photo)
+        except Exception:
+            return False
+
+    def _procedural(self):
+        from . import bg
+        w, h = 320, 180
+        surf = sdl2.SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, sdl2.SDL_PIXELFORMAT_ARGB8888)
+        data = bg.procedural_pixels(w, h)
+        ctypes.memmove(surf.contents.pixels, data, len(data))
+        self.proc = sdl2.SDL_CreateTextureFromSurface(self.r, surf)
+        sdl2.SDL_FreeSurface(surf)
+
     def background(self, dt=0.0):
         self.t += dt
         self.rect(0, 0, W, H, BG)
-        for x, y, s, ph in self.stars:
+        if self.photo:                                           # image du jeu, lent zoom/deplacement, assombrie pour garder l'interface lisible
+            pw, ph = self.photo_size
+            z = 1.0 + 0.045 * (0.5 + 0.5 * math.sin(self.t * 0.09))
+            sc = max(W / pw, H / ph) * z
+            dw, dh = pw * sc, ph * sc
+            dx = (W - dw) / 2 + 14 * math.sin(self.t * 0.06); dy = -(dh - H) * 0.12
+            sdl2.SDL_RenderCopy(self.r, self.photo, None, sdl2.SDL_Rect(int(dx), int(dy), int(dw), int(dh)))
+            self.rect(0, 0, W, H, (3, 5, 12), 70)
+            for k in range(6):                                   # vignette
+                self.rect(0, k * 14, W, 14, (0, 0, 0), 70 - k * 11); self.rect(0, H - (k + 1) * 14, W, 14, (0, 0, 0), 70 - k * 11)
+            return
+        if not self.proc: self._procedural()
+        sdl2.SDL_RenderCopy(self.r, self.proc, None, sdl2.SDL_Rect(0, 0, W, H))
+        for x, y, sz, ph in self.stars:                          # etoiles : 3 couches qui defilent a des vitesses differentes (parallaxe)
+            speed = 5 + sz * 7
+            xx = (x - self.t * speed) % W
             b = 0.55 + 0.45 * math.sin(self.t * 1.3 + ph)
-            v = int(70 + 150 * b * (s / 3.0 + 0.3))
-            self.rect(x, y, s, s, (v, v, min(255, v + 25)))
-        # lueur lointaine d'une planete en bas a droite
-        for i in range(7):
-            self.rect(W - 360 + i * 22, H - 60 + i * 8, 520 - i * 44, 120, (30 + i * 5, 24 + i * 6, 60 + i * 8), 28)
+            v = int(70 + 150 * b * (sz / 3.0 + 0.3))
+            self.rect(xx, y, sz, sz, (v, v, min(255, v + 25)))
 
     def header(self, title, sub=""):
         self.panel(30, 24, W - 60, 92, th=3, fill=PANEL2)
@@ -155,7 +189,7 @@ class UI:
         if not enabled: border, fill, tc = (70, 80, 90), PANEL, (90, 100, 108)
         elif primary: border, fill, tc = (GREEN if not focus else YELLOW), GREEN_D, (TEXT if not focus else YELLOW)
         else: border, fill, tc = (BORDER if not focus else YELLOW), (PANEL2 if not focus else (48, 58, 40)), (TEXT if not focus else YELLOW)
-        self.panel(x, y, w, h, border=border, fill=fill, th=3 if focus else 2, cut=6)
+        self.panel(x, y, w, h, border=border, fill=fill, th=3 if focus else 2, cut=6, a=240)
         if focus and enabled:
             self.frame(x - 5, y - 5, w + 10, h + 10, YELLOW, 1)
         self.title(label, x + w // 2, y + (h - (12 if small else 16)) // 2, tc, 12 if small else 16, anchor="c")

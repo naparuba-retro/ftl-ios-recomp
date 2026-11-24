@@ -31,7 +31,9 @@ def run(root, font_dir, argv):
         elif a == "--selftest": selftest = True
         elif a == "--smoke": smoke = int(next(it))
     T = i18n.pick(lang)
+    real_ipa = None
     if demo:                                           # dossier jetable : rien d'ecrit dans le vrai dossier
+        real_ipa = (scan.find_ipas(root) or [None])[0]   # si ton IPA existe, la demonstration en decoupe vraiment le fond
         root = tempfile.mkdtemp(prefix="ftl_demo_"); os.environ["FTL_FAKE_ROOT"] = root
     if shots: return make_shots(root, font_dir, T, shots)
     if selftest: return selftest_run(root, font_dir, T)
@@ -56,7 +58,7 @@ def run(root, font_dir, argv):
         while sdl2.SDL_PollEvent(ctypes.byref(ev)): app.handle(ev)
         now = time.time(); dt = now - last; last = now
         if demo and app.state == "setup" and now - demo_t0 > 6 and app.scanner.ipa_state == "none":
-            app.scanner.ipa_path, app.scanner.ipa_state = os.path.join(root, "ipa", "FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa"), "verifying"
+            app.scanner.ipa_path, app.scanner.ipa_state = real_ipa or os.path.join(root, "ipa", "FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa"), "verifying"
         if demo and now - demo_t0 > 8 and app.scanner.ipa_state == "verifying":
             app.scanner.ipa_state = "ok"; app.scanner.pc, app.scanner.pc_state = demo_pc, "found"
         app.draw(dt); sdl2.SDL_RenderPresent(r)
