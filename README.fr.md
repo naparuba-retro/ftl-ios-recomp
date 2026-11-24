@@ -9,6 +9,13 @@ pour Windows et Linux (Steam Deck). Le code ARM est traduit en C (« recompilati
 > **Aucun contenu du jeu n'est dans ce dépôt** : ni l'IPA, ni `ftl.dat`, ni le code C généré à partir du binaire, ni les images/sons.
 > Vous devez posséder le jeu. Tout ce qui est généré reste dans le dossier `build/` (ignoré par git).
 
+## Téléchargement (sans Python)
+Chaque release contient deux paquets avec leur propre Python ; **aucun contenu du jeu**, il faut toujours votre IPA :
+- **Windows** : `FTL-Recomp-<version>-windows-x64.zip` — décompresser, lancer `play.bat`.
+- **Steam Deck / Linux** : `FTL-Recomp-<version>-x86_64.AppImage` — `chmod +x`, puis le lancer (sur le Deck : l'ajouter comme jeu non-Steam). Ses données (outils, votre IPA, le jeu construit) sont dans `~/.local/share/ftl-recomp/` (`FTL_HOME` pour changer).
+
+Ils sont construits par l'action GitHub **Packages** (`.github/workflows/release.yml`, `packaging/make_dist.py`) : lancement manuel, ou pousser un tag `v*` pour publier une release.
+
 ## Prérequis
 **Python 3.11+ et une connexion Internet. Rien d'autre à installer ni à télécharger à la main.**
 Au premier lancement, `bootstrap.py` récupère dans `./tools/` (ignoré par git), chaque archive étant vérifiée par SHA-256 :

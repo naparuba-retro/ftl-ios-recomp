@@ -9,6 +9,13 @@ This repository builds a native executable for Windows and Linux (Steam Deck) **
 > **No game content is in this repository**: no IPA, no `ftl.dat`, no C code generated from the binary, no images or sounds.
 > You must own the game. Everything generated stays in the `build/` folder (ignored by git).
 
+## Download (no Python needed)
+Each release has two packages with their own Python; **no game content inside**, you still need your own IPA:
+- **Windows**: `FTL-Recomp-<version>-windows-x64.zip` — unzip, run `play.bat`.
+- **Steam Deck / Linux**: `FTL-Recomp-<version>-x86_64.AppImage` — `chmod +x`, then run it (on the Deck, add it as a non-Steam game). Its data (tools, your IPA, the built game) lives in `~/.local/share/ftl-recomp/` (`FTL_HOME` to change).
+
+They are built by the **Packages** GitHub Action (`.github/workflows/release.yml`, `packaging/make_dist.py`): run it by hand, or push a tag `v*` to publish a release.
+
 ## Requirements
 **Python 3.11+ and an Internet connection. Nothing else to install or download by hand.**
 On first run, `bootstrap.py` fetches the following into `./tools/` (ignored by git); every archive is verified by SHA-256:
