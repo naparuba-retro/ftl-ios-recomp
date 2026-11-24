@@ -3,7 +3,7 @@
 import os, subprocess, sys, tempfile, time
 import sdl2
 
-from . import ui as U, app as A, i18n, scan, build
+from . import ui as U, app as A, i18n, scan, build, settings
 from .ui import W, H
 
 
@@ -32,19 +32,30 @@ def run(root, font_dir, argv):
         elif a == "--smoke": smoke = int(next(it))
         elif a == "--autotest": autotest = True
     T = i18n.pick(lang)
+    cli_lang = lang
     real_ipa = None
     if demo:                                           # dossier jetable : rien d'ecrit dans le vrai dossier
         real_ipa = (scan.find_ipas(root) or [None])[0]   # si ton IPA existe, la demonstration en decoupe vraiment le fond
         root = tempfile.mkdtemp(prefix="ftl_demo_"); os.environ["FTL_FAKE_ROOT"] = root
     if shots: return make_shots(root, font_dir, T, shots)
     if selftest: return selftest_run(root, font_dir, T)
+    # SDL transforme SIGTERM/SIGINT en "fenetre fermee" : on prend la main pour savoir QUI demande l'arret (session SSH terminee, systeme, utilisateur)
+    import signal
+    sdl2.SDL_SetHint(b"SDL_NO_SIGNAL_HANDLERS", b"1")
+    got = []
+    def on_signal(sig, frm): got.append(signal.Signals(sig).name)
+    for name in ("SIGTERM", "SIGHUP", "SIGINT"):
+        if hasattr(signal, name): signal.signal(getattr(signal, name), on_signal)
     sdl2.SDL_Init(sdl2.SDL_INIT_VIDEO | sdl2.SDL_INIT_GAMECONTROLLER | sdl2.SDL_INIT_EVENTS)
     sdlttf_init.init()
-    fullscreen = fullscreen or bool(os.environ.get("SteamDeck") or os.environ.get("SteamGamepadUI"))
+    st0 = settings.Settings(os.path.join(root, "settings.ini"))
+    if not cli_lang: T = i18n.pick(st0.get("launcher", "language"))
+    fullscreen = fullscreen or st0.launcher_fullscreen()
     win, r = make_window(fullscreen)
     ui = U.UI(r, font_dir)
     cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "fake_build.py")] + (["fail"] if demo == "fail" else []) if demo else None
     app = A.App(root, ui, T, demo=cmd, scanning=not demo)
+    app.window = win
     demo_t0 = time.time()
     if demo:                                     # demonstration : on part de "rien trouve", l'IPA "arrive" apres 6 s
         sc = app.scanner; sc._busy = True; app.next_rescan = 1e18; sc.ipa_state, sc.pc_state = "none", "none"
@@ -53,8 +64,11 @@ def run(root, font_dir, argv):
         if sdl2.SDL_IsGameController(i): sdl2.SDL_GameControllerOpen(i)
     ev = sdl2.SDL_Event(); last = time.time()
     n = 0; phase = 0; t_auto = time.time(); last_pct = -1
+    from .app import ulog
     def log(m): print("[autotest %5.0fs] %s" % (time.time() - t_auto, m), flush=True)
     while not app.quit and not app.launch:
+        if got:
+            ulog("signal received: %s -> the program asked to stop (not a click in the window)" % ", ".join(got)); app.quit = True; break
         if autotest:                                   # test de bout en bout : detecte l'IPA, construit pour de vrai, puis clique JOUER
             if phase == 0 and app.scanner.ipa_state == "ok": log("IPA detected: %s" % app.scanner.ipa_path); app.activate("build"); phase = 1; log("BUILD clicked")
             elif phase == 0 and time.time() - t_auto > 60: log("FAIL: IPA not detected in 60 s"); return 2
@@ -76,9 +90,13 @@ def run(root, font_dir, argv):
     if app.launch:
         exe, g = app.launch
         sdl2.SDL_HideWindow(win)
-        try: rc = subprocess.call([exe, "."], cwd=g)
+        genv = app.settings.game_env()
+        app_log("launching the game with options: %s" % genv)
+        try: rc = subprocess.call([exe, "."], cwd=g, env=dict(os.environ, **genv))
         except OSError as e: print("lancement impossible :", e); rc = 1
         sdl2.SDL_Quit(); return rc
+    app_log = __import__("launcher.app", fromlist=["ulog"]).ulog
+    app_log("exit: app.quit=%s launch=%s" % (app.quit, bool(app.launch)))
     sdl2.SDL_Quit(); return 0
 
 
@@ -118,6 +136,11 @@ def make_shots(root, font_dir, T, outdir):
     app.state, app.focus = "error", "retry"; shot("9_error")
     app.runner = None; g = os.path.join(root, "build", "game"); app.game_dir = g; app.state, app.focus = "ready", "play"; shot("10_ready_to_play")
     app.modal = "rebuild"; shot("11_confirm_rebuild")
+    app.settings.save = lambda: None                      # captures : rien n'est ecrit dans settings.ini
+    app.modal = None; app.prev_state = "ready"; app.state = "options"; app.disk_bytes = int(2.3 * 1024 ** 3); app.focus = "back"; shot("12_options")
+    app.settings.cp["game"]["vsync"] = "off"; app.settings.cp["game"]["record"] = "on"; app.settings.cp["launcher"]["fullscreen"] = "on"
+    app.T = i18n.FR; app.disk_msg = "Terminé : 2,1 GB libérés"; app.focus = "free"; shot("13_options_fr")
+    app.modal = "free"; shot("14_confirm_free_space")
     return 0
 
 
@@ -162,5 +185,33 @@ def selftest_run(root, font_dir, T):
     # parcourir
     app.open_browse("ipa"); frames(); check(app.state == "browse" and len(app.browse["entries"]) > 0, "PARCOURIR liste un dossier")
     app.key_action("back"); frames(); check(app.state == "setup", "Echap quitte le navigateur")
+    # ---- options
+    app.state = "setup"; app.runner = None; frames(); check(any(w[0] == "options" for w in app.widgets), "le bouton OPTIONS est present sur l'ecran de depart")
+    app.activate("options"); frames(); check(app.state == "options", "OPTIONS ouvre l'ecran d'options")
+    app.activate("opt:game:vsync"); app.activate("opt:game:show_fps"); app.activate("opt:game:sound"); app.activate("opt:game:record")
+    env = app.settings.game_env()
+    check(env.get("FTL_NOVSYNC") == "1" and env.get("FTL_FPS") == "1" and env.get("FTL_NOSOUND") == "1" and env.get("FTL_RECORD") == "auto", "les options deviennent des variables d'environnement du jeu : %s" % sorted(env))
+    from . import settings as _st
+    again = _st.Settings(app.settings.path)
+    check(again.get("game", "vsync") == "off" and again.get("game", "record") == "on", "les reglages sont enregistres dans settings.ini et relus")
+    app.activate("opt:launcher:language"); check(app.T is i18n.FR, "la langue de l'interface change tout de suite")
+    app.activate("opt:launcher:language"); check(app.T is i18n.EN, "... et revient")
+    app.settings.cp["game"]["fullscreen"] = "on"; check(app.settings.game_env().get("FTL_FULLSCREEN") == "1", "plein ecran -> FTL_FULLSCREEN")
+    app.settings.cp["game"]["fullscreen"] = "off"; check(app.settings.game_env().get("FTL_WINDOWED") == "1", "fenetre -> FTL_WINDOWED")
+    # espace disque : sur un dossier jetable uniquement
+    for d, f in (("tools/ghidra_test", "a.bin"), ("tools/jdk-test", "b.bin"), ("tools/_dl", "c.zip"), ("build/gen", "d.c"), ("build/ghidra", "e.bin"),
+                 ("tools/pylibs", "KEEP1"), ("tools/fonts", "KEEP2"), ("build/game", "KEEP3"), ("build/logs", "KEEP4"), ("ipa", "KEEP5.ipa")):
+        os.makedirs(os.path.join(root, d), exist_ok=True); open(os.path.join(root, d, f), "wb").write(b"x" * 1000)
+    app.state = "setup"; app.open_options(); t0 = time.time()
+    while app.disk_bytes is None and time.time() - t0 < 10: time.sleep(0.1)
+    check(app.disk_bytes == 5000, "le calcul de l'espace supprimable ne compte que les outils et fichiers de build (%s octets)" % app.disk_bytes)
+    app.activate("free"); frames(); check(app.modal == "free", "LIBERER demande confirmation")
+    app.activate("no"); frames(); check(app.modal is None and os.path.exists(os.path.join(root, "tools/ghidra_test")), "NON ne supprime rien")
+    app.activate("free"); app.activate("yes"); t0 = time.time()
+    while time.time() - t0 < 10 and (app.disk_busy or os.path.exists(os.path.join(root, "tools/ghidra_test"))): time.sleep(0.1)
+    gone = not any(os.path.exists(os.path.join(root, d)) for d in ("tools/ghidra_test", "tools/jdk-test", "tools/_dl", "build/gen", "build/ghidra"))
+    kept = all(os.path.exists(os.path.join(root, d)) for d in ("tools/pylibs/KEEP1", "tools/fonts/KEEP2", "build/game/KEEP3", "build/logs/KEEP4", "ipa/KEEP5.ipa"))
+    check(gone, "OUI supprime les outils telecharges et les fichiers de build"); check(kept, "... mais garde pylibs, polices, le jeu, les journaux et l'IPA")
+    app.key_action("back"); frames(); check(app.state == "setup", "Echap quitte les options et revient a l'ecran precedent (%s)" % app.state)
     print("RESULTAT :", "TOUT OK" if ok else "ECHECS")
     return 0 if ok else 1

@@ -136,3 +136,55 @@ def open_folder(path):
         else: subprocess.Popen(["xdg-open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------- espace disque
+def deletable_paths(root):
+    """Ce qu'on peut supprimer sans casser le jeu : outils telecharges et fichiers intermediaires du build.
+    On GARDE : tools/pylibs et tools/fonts (le lanceur en a besoin), build/game, build/logs, build/ui_cache, ipa/, les sauvegardes."""
+    t = os.path.join(root, "tools"); b = os.path.join(root, "build")
+    out = []
+    for pat in ("ghidra_*", "jdk*", "zig-*", "_dl"): out += glob.glob(os.path.join(t, pat))
+    for name in ("ghidra", "gsettings", "gen", "obj", "zigcache", "ipa"): out.append(os.path.join(b, name))
+    return [p for p in out if os.path.exists(p)]
+
+
+def dir_size(path):
+    total = 0
+    stack = [path]
+    while stack:
+        d = stack.pop()
+        try:
+            with os.scandir(d) as it:
+                for e in it:
+                    try:
+                        if e.is_dir(follow_symlinks=False): stack.append(e.path)
+                        else: total += e.stat(follow_symlinks=False).st_size
+                    except OSError: pass
+        except OSError:
+            if os.path.isfile(d):
+                try: total += os.path.getsize(d)
+                except OSError: pass
+    return total
+
+
+def human(n):
+    for u in ("B", "KB", "MB", "GB"):
+        if n < 1024 or u == "GB": return ("%d %s" % (n, u)) if u == "B" else ("%.1f %s" % (n, u))
+        n /= 1024.0
+
+
+def free_space(root):
+    """Supprime deletable_paths ; renvoie le nombre d'octets liberes."""
+    import shutil, stat
+    def onerror(func, path, exc):
+        try: os.chmod(path, stat.S_IWRITE); func(path)
+        except Exception: pass
+    freed = 0
+    for p in deletable_paths(root):
+        freed += dir_size(p)
+        if os.path.isdir(p): shutil.rmtree(p, onerror=onerror)
+        else:
+            try: os.remove(p)
+            except OSError: pass
+    return freed

@@ -64,6 +64,17 @@ FR = {
     "empty": "(rien à afficher ici)",
     "confirm_rebuild": "Reconstruire efface le jeu actuel. Continuer ?",
     "yes": "OUI", "no": "NON",
+    "btn_options": "OPTIONS", "opt_title": "OPTIONS", "opt_sub": "Les changements sont enregistrés automatiquement.",
+    "sec_display": "AFFICHAGE", "sec_sound": "SON", "sec_diag": "DIAGNOSTIC", "sec_launcher": "LANCEUR", "sec_folders": "DOSSIERS", "sec_disk": "ESPACE DISQUE",
+    "o_game_fs": "Fenêtre du jeu", "o_vsync": "Synchro verticale", "o_fps": "Compteur d'images/s", "o_sound": "Son du jeu", "o_record": "Enregistrer mes parties",
+    "o_lang": "Langue", "o_win_fs": "Fenêtre du lanceur",
+    "v_auto": "Auto", "v_on": "Oui", "v_off": "Non", "v_fullscreen": "Plein écran", "v_window": "Fenêtre", "v_en": "English", "v_fr": "Français",
+    "o_open_saves": "OUVRIR LES SAUVEGARDES", "o_open_logs": "OUVRIR LES JOURNAUX", "o_open_rec": "OUVRIR LES ENREGISTREMENTS",
+    "disk_info": "Outils et fichiers de build supprimables :", "disk_calc": "calcul en cours...", "btn_free": "LIBÉRER DE LA PLACE",
+    "free_note": "Supprime Ghidra, Java, le compilateur et les fichiers de build. Le jeu continue de marcher ; reconstruire les retéléchargera.",
+    "freed": "Terminé : %s libérés", "busy_build": "Indisponible pendant la construction", "freeing": "Suppression en cours...",
+    "note_win_fs": "Windows : le jeu reste en fenêtre pour l'instant (plein écran : Linux / Steam Deck).",
+    "hint_rec": "Permet de rejouer une partie à l'identique, pour reproduire un bug.",
 }
 
 EN = {
@@ -88,6 +99,17 @@ EN = {
     "browse_title": "PICK A FILE", "browse_ipa": "Find the FTL .ipa file", "browse_dat": "Find the FTL PC ftl.dat",
     "hint_nav": "Up/Down: choose   Enter / A: confirm   Esc / B: back", "folder": "Folder", "up": "[ parent folder ]", "empty": "(nothing to show here)",
     "confirm_rebuild": "Rebuilding erases the current game. Continue?", "yes": "YES", "no": "NO",
+    "btn_options": "OPTIONS", "opt_title": "OPTIONS", "opt_sub": "Changes are saved automatically.",
+    "sec_display": "DISPLAY", "sec_sound": "SOUND", "sec_diag": "DIAGNOSTICS", "sec_launcher": "LAUNCHER", "sec_folders": "FOLDERS", "sec_disk": "DISK SPACE",
+    "o_game_fs": "Game window", "o_vsync": "Vertical sync", "o_fps": "FPS counter", "o_sound": "Game sound", "o_record": "Record my games",
+    "o_lang": "Language", "o_win_fs": "Launcher window",
+    "v_auto": "Auto", "v_on": "On", "v_off": "Off", "v_fullscreen": "Fullscreen", "v_window": "Windowed", "v_en": "English", "v_fr": "Français",
+    "o_open_saves": "OPEN SAVES", "o_open_logs": "OPEN LOGS", "o_open_rec": "OPEN RECORDINGS",
+    "disk_info": "Tools and build files you can delete:", "disk_calc": "calculating...", "btn_free": "FREE UP SPACE",
+    "free_note": "Removes Ghidra, Java, the compiler and build files. The game keeps working; rebuilding will download them again.",
+    "freed": "Done: %s freed", "busy_build": "Not available during a build", "freeing": "Deleting...",
+    "note_win_fs": "Windows: the game stays windowed for now (fullscreen: Linux / Steam Deck).",
+    "hint_rec": "Lets you replay a game exactly, to reproduce a bug.",
 }
 
 

@@ -78,3 +78,6 @@ __pycache__/
 # === Tests de reconstruction (copie jetable) ===
 build/
 _test_*/
+
+# === Reglages du lanceur ===
+settings.ini

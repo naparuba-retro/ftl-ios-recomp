@@ -4,9 +4,14 @@ Entrees : clavier, souris, manette (Steam Deck), glisser-deposer d'un fichier.""
 import ctypes, os, subprocess, sys, time
 import sdl2
 
+
+def ulog(msg):
+    """Journal de l'interface (stderr) : clics, touches, cause de la fermeture."""
+    print("[ui %s] %s" % (time.strftime("%H:%M:%S"), msg), file=sys.stderr, flush=True)
+
 from . import ui as U
 from .ui import W, H
-from . import scan, build, i18n
+from . import scan, build, i18n, settings as cfg
 
 STAGE_ORDER = build.STAGES
 
@@ -29,6 +34,8 @@ class App:
         self.state = "setup"
         self.widgets = []; self.focus = None; self.mouse_moved = False
         self.want_fr = True
+        self.settings = cfg.Settings(os.path.join(root, "settings.ini")); self.window = None
+        self.prev_state = "setup"; self.disk_bytes = None; self.disk_msg = ""; self.disk_busy = False
         self.runner = None; self.demo = demo
         self.browse = None            # dict : kind, dir, entries, idx, scroll
         self.modal = None             # 'rebuild'
@@ -69,7 +76,12 @@ class App:
     # ------------------------------------------------------------ actions
     def activate(self, wid):
         s = self.scanner
-        if wid == "quit": self.quit = True
+        ulog("action: %s (state=%s)" % (wid, self.state))
+        if wid == "options": return self.open_options()
+        if wid.startswith("opt:"): return self.option_changed(*wid.split(":")[1:])
+        if wid.startswith("folder:"): return self.open_special_folder(wid.split(":")[1])
+        if wid == "free": self.modal = "free"; self.focus = "no"; return
+        if wid == "quit": ulog("QUIT button"); self.quit = True
         elif wid == "open_dir": scan.open_folder(self.ipa_dir)
         elif wid == "copy_link": sdl2.SDL_SetClipboardText(scan.IPA_EXAMPLE_URL.encode()); self.copied_until = time.time() + 2.0
         elif wid == "browse_ipa": self.open_browse("ipa")
@@ -87,11 +99,15 @@ class App:
         elif wid == "play": self.play()
         elif wid == "lang": scan.swap_language(self.game_dir)
         elif wid == "rebuild": self.modal = "rebuild"; self.focus = "no"
-        elif wid == "yes": self.modal = None; self.state = "setup"; self.focus = None
-        elif wid == "no": self.modal = None; self.focus = "play"
+        elif wid == "yes":
+            m = self.modal; self.modal = None
+            if m == "free": self.start_free()
+            else: self.state = "setup"; self.focus = None
+        elif wid == "no": self.modal = None; self.focus = "free" if self.state == "options" else "play"
 
     def back(self):
-        if self.modal: self.modal = None; self.focus = "play"
+        if self.modal: self.modal = None; self.focus = "free" if self.state == "options" else "play"
+        elif self.state == "options": self.state = self.prev_state; self.focus = None
         elif self.state == "browse": self.state = "setup"; self.focus = None
         elif self.state in ("error",): self.state = "setup"; self.focus = None
 
@@ -106,6 +122,39 @@ class App:
     def play(self):
         ok, exe, g = scan.game_state(self.root)
         if ok: self.launch = (exe, g)
+
+    # ------------------------------------------------------------ options
+    def open_options(self):
+        if self.state == "options": return
+        self.prev_state = self.state; self.state = "options"; self.focus = "back"; self.disk_msg = ""
+        if not self.disk_busy:
+            self.disk_bytes = None
+            def job():
+                self.disk_busy = True
+                try: self.disk_bytes = sum(scan.dir_size(p) for p in scan.deletable_paths(self.root))
+                finally: self.disk_busy = False
+            __import__("threading").Thread(target=job, daemon=True).start()
+
+    def option_changed(self, sec, key):
+        v = self.settings.cycle(sec, key)
+        if sec == "launcher" and key == "language": self.T = i18n.FR if v == "fr" else i18n.EN
+        elif sec == "launcher" and key == "fullscreen": self.apply_window_mode()
+
+    def apply_window_mode(self):
+        if self.window: sdl2.SDL_SetWindowFullscreen(self.window, sdl2.SDL_WINDOW_FULLSCREEN_DESKTOP if self.settings.launcher_fullscreen() else 0)
+
+    def open_special_folder(self, which):
+        g = os.path.join(self.root, "build", "game")
+        scan.open_folder({"saves": os.path.join(g, "savedata"), "logs": os.path.join(self.root, "build", "logs"), "rec": os.path.join(g, "replays")}[which])
+
+    def start_free(self):
+        if self.disk_busy or (self.runner and self.runner.state == "running"): return
+        self.disk_msg = self.T["freeing"]
+        def job():
+            self.disk_busy = True
+            try: n = scan.free_space(self.root); self.disk_bytes = 0; self.disk_msg = self.T["freed"] % scan.human(n)
+            finally: self.disk_busy = False
+        __import__("threading").Thread(target=job, daemon=True).start()
 
     # ------------------------------------------------------------ navigateur de fichiers
     def open_browse(self, kind):
@@ -168,16 +217,17 @@ class App:
 
     def handle(self, e):
         t = e.type
-        if t == sdl2.SDL_QUIT: self.quit = True
+        if t == sdl2.SDL_QUIT: ulog("SDL_QUIT received (window closed by the system or the user)"); self.quit = True
         elif t == sdl2.SDL_KEYDOWN:
             k = e.key.keysym.sym
             m = {sdl2.SDLK_UP: "up", sdl2.SDLK_DOWN: "down", sdl2.SDLK_LEFT: "left", sdl2.SDLK_RIGHT: "right", sdl2.SDLK_RETURN: "ok", sdl2.SDLK_KP_ENTER: "ok",
                  sdl2.SDLK_SPACE: "ok", sdl2.SDLK_ESCAPE: "back", sdl2.SDLK_BACKSPACE: "parent", sdl2.SDLK_PAGEUP: "pageup", sdl2.SDLK_PAGEDOWN: "pagedown"}.get(k)
             if k == sdl2.SDLK_TAB: m = "right"
-            if m: self.key_action(m)
+            if m: ulog("key: %s" % m); self.key_action(m)
         elif t == sdl2.SDL_MOUSEMOTION:
             self.mouse = (e.motion.x, e.motion.y); self.mouse_moved = True
         elif t == sdl2.SDL_MOUSEBUTTONDOWN and e.button.button == sdl2.SDL_BUTTON_LEFT:
+            ulog("click at logical (%d,%d), widget=%s" % (e.button.x, e.button.y, self.widget_at(e.button.x, e.button.y)))
             if self.state == "browse" and not self.modal:
                 self.browse_click(e.button.x, e.button.y)
             w = self.widget_at(e.button.x, e.button.y)
@@ -233,7 +283,8 @@ class App:
         if self.runner:
             if self.runner.state == "done" and st == "build": ok, self.exe, self.game_dir = scan.game_state(self.root); self.state = "ready"; self.runner = None; self.focus = "play"; st = "ready"
             elif self.runner.state == "error" and st == "build": self.state = "error"; self.focus = "retry"; st = "error"
-        {"setup": self.draw_setup, "browse": self.draw_browse, "build": self.draw_build, "error": self.draw_error, "ready": self.draw_ready}[st](ui, T)
+        {"setup": self.draw_setup, "browse": self.draw_browse, "build": self.draw_build, "error": self.draw_error, "ready": self.draw_ready, "options": self.draw_options}[st](ui, T)
+        if st != "options" and not self.modal: self.add("options", T["btn_options"], W - 366, 42, 190, 44, small=True)
         if self.modal: self.draw_modal(ui, T)
         if self.mouse_moved:
             self.mouse_moved = False
@@ -382,10 +433,51 @@ class App:
         ui.text(fit(ui, self.game_dir, W - 700, 24), W // 2, y + 84, U.DIM, 24, anchor="c")
         self.first_focus("play")
 
+    def opt_label(self, sec, key):
+        v = self.settings.get(sec, key)
+        name = {"auto": "v_auto", "on": "v_on", "off": "v_off", "en": "v_en", "fr": "v_fr"}[v]
+        if key == "fullscreen": name = {"auto": "v_auto", "on": "v_fullscreen", "off": "v_window"}[v]
+        return self.T.get(name, name)
+
+    def opt_row(self, sec, key, label, x, y, w=560, enabled=True):
+        colon = self.T["colon"]
+        self.add("opt:%s:%s" % (sec, key), "%s%s %s" % (self.T[label], colon, self.opt_label(sec, key)), x, y, w, 46, enabled=enabled, small=True)
+
+    def draw_options(self, ui, T):
+        ui.header(T["opt_title"], T["opt_sub"])
+        ui.panel(40, 128, W - 80, 536)
+        L, R = 62, 660
+        ui.title(T["sec_display"], L, 146, U.CYAN, 14)
+        self.opt_row("game", "fullscreen", "o_game_fs", L, 176, enabled=not cfg.IS_WIN)
+        self.opt_row("game", "vsync", "o_vsync", L, 230)
+        self.opt_row("game", "show_fps", "o_fps", L, 284)
+        if cfg.IS_WIN: ui.paragraph(T["note_win_fs"], L + 6, 336, 540, U.YELLOW, 22)
+        ui.title(T["sec_sound"], L, 392, U.CYAN, 14)
+        self.opt_row("game", "sound", "o_sound", L, 422)
+        ui.title(T["sec_diag"], L, 488, U.CYAN, 14)
+        self.opt_row("game", "record", "o_record", L, 518)
+        ui.paragraph(T["hint_rec"], L + 6, 570, 540, U.DIM, 22)
+        ui.title(T["sec_launcher"], R, 146, U.CYAN, 14)
+        self.opt_row("launcher", "language", "o_lang", R, 176)
+        self.opt_row("launcher", "fullscreen", "o_win_fs", R, 230)
+        ui.title(T["sec_folders"], R, 296, U.CYAN, 14)
+        self.add("folder:saves", T["o_open_saves"], R, 326, 560, 40, small=True)
+        self.add("folder:logs", T["o_open_logs"], R, 372, 560, 40, small=True)
+        self.add("folder:rec", T["o_open_rec"], R, 418, 560, 40, small=True)
+        ui.title(T["sec_disk"], R, 478, U.CYAN, 14)
+        busy_build = bool(self.runner and self.runner.state == "running")
+        info = T["disk_calc"] if self.disk_bytes is None else scan.human(self.disk_bytes)
+        ui.text("%s %s" % (T["disk_info"], info), R, 506, U.TEXT, 24)
+        if self.disk_msg: ui.text(self.disk_msg, R, 534, U.GREEN, 24)
+        elif busy_build: ui.text(T["busy_build"], R, 534, U.YELLOW, 24)
+        self.add("free", T["btn_free"], R, 566, 560, 44, enabled=not busy_build and not self.disk_busy and bool(self.disk_bytes), small=True)
+        self.add("back", T["btn_back"], 40, 676, 220, 36, small=True)
+        self.first_focus("back")
+
     def draw_modal(self, ui, T):
         ui.rect(0, 0, W, H, (0, 0, 0), 170)
         ui.panel(340, 250, W - 680, 200, border=U.YELLOW)
-        ui.paragraph(T["confirm_rebuild"], 372, 280, W - 744, U.TEXT, 30)
+        ui.paragraph(T["free_note"] if self.modal == "free" else T["confirm_rebuild"], 372, 270, W - 744, U.TEXT, 28)
         self.widgets = []
         self.add("yes", T["yes"], 400, 380, 220, 48, small=True)
         self.add("no", T["no"], W - 620, 380, 220, 48, small=True)
