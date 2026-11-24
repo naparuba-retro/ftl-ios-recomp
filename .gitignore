@@ -1,0 +1,75 @@
+# === Contenu du jeu (copyright) : ne jamais committer ===
+*.ipa
+*.dat
+*.tex
+*.ogg
+*.ttf
+*.font
+FTL
+work/FTL
+work/extracted/
+work/png/
+work/sprites/
+mem_*.bin
+work/ftl_dat_index.json
+
+# === Code genere a partir du binaire (se regenere avec work/scripts/Lift.java) ===
+work/recomp/gen/
+work/recomp/gen[a-z]/
+work/recomp/gen_zlib/
+work/recomp/stubs.c
+
+# === Bibliotheque tierce (licence propre) ===
+sil_src/
+
+# === Outils lourds ===
+tools/
+work/proj/
+work/proj2/
+work/gsettings/
+
+# === Livrables et dossiers de test ===
+jeu_pc/
+dist/
+work/linux/
+work/fr/out/
+work/fr/test/
+work/fr/btn/
+work/recomp/override/
+work/recomp/savedata/
+work/recomp/sc_*/
+work/recomp/v_*/
+work/recomp/an_obj/
+work/recomp/obj*/
+**/savedata/
+**/replays/
+
+# === Sorties de compilation ===
+*.exe
+*.obj
+*.o
+*.pdb
+*.ilk
+*.map
+*.lib
+*.exp
+ftl_linux
+work/recomp/vec.bin
+
+# === Images de preuve / captures (pas pour l'instant) ===
+/*.png
+work/recomp/*.png
+**/shot_*.png
+**/winshot.png
+
+# === Logs et fichiers de debug ===
+*.log
+*.err
+work/recomp/*.txt
+!work/recomp/CMakeLists.txt
+__pycache__/
+*.pyc
+*.ghidra*
+*.lock
+*.rep
+*.gpr
