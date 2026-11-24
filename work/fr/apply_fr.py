@@ -26,4 +26,4 @@ with open(dst, 'r+b') as g:
         g.seek(ent + 4); g.write(struct.pack('>I', old & 0x00ffffff))           # drapeau compression = 0
         g.seek(ent + 8); g.write(struct.pack('>III', pos, len(data), len(data)))  # offset, taille stockee, taille decompressee
         pos += len(data); g.seek(0, 2)
-print(len(repl), 'fichiers remplaces ->', dst, os.path.getsize(dst), 'octets')
+print(len(repl), 'files replaced ->', dst, os.path.getsize(dst), 'bytes')

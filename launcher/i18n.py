@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Textes du lanceur (francais par defaut, anglais si la langue du systeme n'est pas le francais, ou --lang)."""
+"""Launcher texts: English by default (international), French with --lang fr or FTL_LANG=fr."""
 import locale, os
 
 FR = {
+    "colon": " :", "use_fr": "FRANÇAIS",
     "setup_title": "AUCUN JEU TROUVÉ",
     "setup_sub": "Une seule fois : on construit le jeu sur cet appareil, à partir de ton IPA.",
     "step1": "1. Ton IPA de FTL (iPad, version 1.5.10)",
@@ -66,7 +67,7 @@ FR = {
 }
 
 EN = {
-    "setup_title": "NO GAME FOUND", "setup_sub": "Only once: the game is built on this device from your IPA.",
+    "colon": ":", "use_fr": "FRENCH TEXT", "setup_title": "NO GAME FOUND", "setup_sub": "Only once: the game is built on this device from your IPA.",
     "step1": "1. Your FTL IPA (iPad, version 1.5.10)", "step1_drop": "Drop the file on this window, or copy it into this folder:",
     "scanning": "Looking for your IPA...", "verifying": "Checking the file...", "ipa_ok": "IPA recognised (SHA-256 verified)",
     "ipa_bad": "This is not the right IPA (original, decrypted version 1.5.10 needed)",
@@ -91,7 +92,6 @@ EN = {
 
 
 def pick(lang=None):
-    if not lang:
-        try: lang = (os.environ.get("LANG") or locale.getdefaultlocale()[0] or "fr")[:2]
-        except Exception: lang = "fr"
-    return EN if lang.lower() != "fr" else FR
+    """English by default (the tool is international); French with --lang fr or FTL_LANG=fr."""
+    lang = (lang or os.environ.get("FTL_LANG") or "en")[:2].lower()
+    return FR if lang == "fr" else EN

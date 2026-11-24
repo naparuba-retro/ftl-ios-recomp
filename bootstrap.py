@@ -63,23 +63,23 @@ def _get(url, dest, sha256):
     if os.path.exists(dest) and _sha256(dest) == sha256: return dest
     for attempt in range(3):
         try:
-            log("telechargement", url)
+            log("downloading", url)
             req = urllib.request.Request(url, headers={"User-Agent": "ftl-build-bootstrap"})
             t0, n = time.time(), 0
             with urllib.request.urlopen(req, timeout=60) as r, open(dest + ".part", "wb") as f:
                 tot = int(r.headers.get("Content-Length") or 0)
                 for chunk in iter(lambda: r.read(1 << 20), b""):
                     f.write(chunk); n += len(chunk)
-                    if tot and (n // (1 << 20)) % 50 == 0: log("   %d / %d Mo" % (n >> 20, tot >> 20))
+                    if tot and (n // (1 << 20)) % 50 == 0: log("   %d / %d MB" % (n >> 20, tot >> 20))
             got = _sha256(dest + ".part")
             if got != sha256: raise RuntimeError("SHA-256 inattendu : %s (attendu %s)" % (got, sha256))
             os.replace(dest + ".part", dest)
-            log("   ok (%d Mo en %.0f s)" % (n >> 20, time.time() - t0))
+            log("   ok (%d MB in %.0f s)" % (n >> 20, time.time() - t0))
             return dest
         except Exception as e:
-            log("   echec (%s)%s" % (e, ", nouvel essai" if attempt < 2 else ""))
+            log("   failed (%s)%s" % (e, ", retrying" if attempt < 2 else ""))
             time.sleep(2)
-    sys.exit("ERREUR : impossible de telecharger " + url)
+    sys.exit("ERROR: unable to download " + url)
 
 
 def _extract(archive, dest_parent):
@@ -88,7 +88,7 @@ def _extract(archive, dest_parent):
         with zipfile.ZipFile(archive) as z:
             base = os.path.realpath(dest_parent)
             for n in z.namelist():
-                if not os.path.realpath(os.path.join(dest_parent, n)).startswith(base): sys.exit("archive suspecte : " + n)
+                if not os.path.realpath(os.path.join(dest_parent, n)).startswith(base): sys.exit("suspicious archive: " + n)
             z.extractall(dest_parent)
             if not IS_WIN:                        # zipfile ne restaure pas les droits : Ghidra a besoin de ses scripts et du decompilateur executables
                 for i in z.infolist():
@@ -104,10 +104,10 @@ def _ensure(name, spec, marker):
     d = os.path.join(TOOLS, spec["dir"])
     if os.path.exists(os.path.join(d, *marker)): return d
     arch = _get(spec["url"], os.path.join(TOOLS, "_dl", os.path.basename(spec["url"].split("?")[0]).replace("%2B", "+")), spec["sha256"])
-    log("extraction", name)
+    log("extracting", name)
     shutil.rmtree(d, ignore_errors=True)
     _extract(arch, TOOLS)
-    if not os.path.exists(os.path.join(d, *marker)): sys.exit("ERREUR : %s : contenu inattendu apres extraction dans %s" % (name, d))
+    if not os.path.exists(os.path.join(d, *marker)): sys.exit("ERROR: %s: unexpected content after extraction in %s" % (name, d))
     return d
 
 
@@ -125,12 +125,12 @@ def zig():
     if os.path.exists(off): return off
     try:                                                                         # 1) roue PyPI (rapide)
         arch = _get(spec["url"], os.path.join(TOOLS, "_dl", os.path.basename(spec["url"])), spec["sha256"])
-        shutil.rmtree(d, ignore_errors=True); log("extraction Zig (PyPI)"); _extract(arch, d)
+        shutil.rmtree(d, ignore_errors=True); log("extracting Zig (PyPI)"); _extract(arch, d)
         if not os.path.exists(exe): raise RuntimeError("zig absent de la roue")
         if not IS_WIN: os.chmod(exe, 0o755)
         return exe
     except (SystemExit, Exception) as e:
-        log("PyPI indisponible (%s) : repli sur ziglang.org" % e)
+        log("PyPI unavailable (%s): falling back to ziglang.org" % e)
     d = _ensure("Zig", DEPS["zig"][OSK], ["zig" + ext])                        # 2) site officiel
     return os.path.join(d, "zig" + ext)
 
@@ -159,9 +159,9 @@ def pylibs(packages=None, name="base"):
                      and plat(f["filename"])]
             return cands[0] if cands else None
         f = pick()
-        if not f: sys.exit("ERREUR : aucune roue %s %s pour Python %s sur %s" % (pkg, ver, tag, OSK))
+        if not f: sys.exit("ERROR: no wheel %s %s for Python %s on %s" % (pkg, ver, tag, OSK))
         w = _get(f["url"], os.path.join(TOOLS, "_dl", f["filename"]), f["digests"]["sha256"])
-        log("installation locale de", f["filename"])
+        log("installing locally", f["filename"])
         _extract(w, d)
     open(ok, "w").write("ok\n")
     return d

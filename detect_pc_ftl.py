@@ -120,10 +120,10 @@ def usual_dirs():
     if IS_WIN:
         for drive in "CDEFGH":
             for parent in ("Games", "Jeux", "Program Files (x86)", "Program Files"):
-                dirs += [("dossier usuel", d) for d in glob.glob("%s:\\%s\\*FTL*" % (drive, parent))]
+                dirs += [("common folder", d) for d in glob.glob("%s:\\%s\\*FTL*" % (drive, parent))]
     else:
         h = os.path.expanduser("~")
-        dirs += [("dossier usuel", d) for d in glob.glob(h + "/Games/*FTL*") + glob.glob(h + "/Games/*/*FTL*") + glob.glob(h + "/*FTL*")]
+        dirs += [("common folder", d) for d in glob.glob(h + "/Games/*FTL*") + glob.glob(h + "/Games/*/*FTL*") + glob.glob(h + "/*FTL*")]
     env = os.environ.get("FTL_PC_DIR")
     if env: dirs.append(("FTL_PC_DIR", env))
     return dirs
@@ -155,8 +155,8 @@ def find_candidates():
             if not info or not info["languages"]: continue            # pas une archive de FTL avec des textes
             info["store"] = store
             info["warnings"] = []
-            if not info["vanilla"]: info["warnings"].append("archive modifiee (%d entrees, mod type Multiverse ?) : la traduction pourrait etre faussee" % info["entries"])
-            if not info["has_fr"]: info["warnings"].append("pas de data/text-fr.xml (langues : %s)" % ", ".join(info["languages"]))
+            if not info["vanilla"]: info["warnings"].append("modified archive (%d entries, a Multiverse-type mod?): the translation may be wrong" % info["entries"])
+            if not info["has_fr"]: info["warnings"].append("no data/text-fr.xml (languages: %s)" % ", ".join(info["languages"]))
             info["score"] = (info["has_fr"], info["vanilla"], os.path.basename(f).lower().endswith(".vanilla"), -info["size"])
             out.append(info)
     out.sort(key=lambda i: i["score"], reverse=True)
@@ -172,10 +172,10 @@ def best():
 def check_file(path):
     """Verifie un fichier choisi a la main ; renvoie (ok, message)."""
     i = inspect(path)
-    if not i: return False, "ce n'est pas une archive FTL (en-tete PKG attendu)"
-    if not i["has_fr"]: return False, "pas de data/text-fr.xml (langues : %s)" % (", ".join(i["languages"]) or "aucune")
-    if not i["vanilla"]: return True, "attention : archive modifiee (%d entrees) ; preferez le ftl.dat d'origine (ex. ftl.dat.vanilla)" % i["entries"]
-    return True, "ok (%d entrees)" % i["entries"]
+    if not i: return False, "not an FTL archive (PKG header expected)"
+    if not i["has_fr"]: return False, "no data/text-fr.xml (languages: %s)" % (", ".join(i["languages"]) or "none")
+    if not i["vanilla"]: return True, "warning: modified archive (%d entries); prefer the original ftl.dat (e.g. ftl.dat.vanilla)" % i["entries"]
+    return True, "ok (%d entries)" % i["entries"]
 
 
 if __name__ == "__main__":
@@ -183,7 +183,7 @@ if __name__ == "__main__":
     if "--json" in sys.argv:
         print(json.dumps(c, indent=1, ensure_ascii=False)); sys.exit(0 if c else 1)
     if not c:
-        print("Aucune installation de FTL (version PC) avec le francais trouvee."); sys.exit(1)
+        print("No PC installation of FTL with French text found."); sys.exit(1)
     for k, i in enumerate(c):
-        print("%s %s  [%s]  %d Mo, %d entrees, langues : %s" % ("->" if k == 0 else "  ", i["path"], i["store"], i["size"] >> 20, i["entries"], ", ".join(i["languages"])))
+        print("%s %s  [%s]  %d MB, %d entries, languages: %s" % ("->" if k == 0 else "  ", i["path"], i["store"], i["size"] >> 20, i["entries"], ", ".join(i["languages"])))
         for w in i["warnings"]: print("      ! " + w)

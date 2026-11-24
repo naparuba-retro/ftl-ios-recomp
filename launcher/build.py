@@ -5,8 +5,8 @@ import os, platform, re, signal, subprocess, sys, threading, time
 IS_WIN = platform.system() == "Windows"
 STAGES = ["extract", "ghidra", "lift", "patch", "compile", "game", "fr"]
 WEIGHTS = {"extract": 3, "ghidra": 30, "lift": 22, "patch": 2, "compile": 33, "game": 2, "fr": 8}   # part approximative du temps total
-RE_STAGE = re.compile(r"=== etape : (\w+)")
-RE_DL = re.compile(r"\[bootstrap\]\s+(\d+) / (\d+) Mo")
+RE_STAGE = re.compile(r"=== stage : (\w+)")
+RE_DL = re.compile(r"\[bootstrap\]\s+(\d+) / (\d+) MB")
 RE_COMP = re.compile(r"\[build\]\s+(\d+) / (\d+) \(")
 
 
@@ -66,7 +66,7 @@ class BuildRunner:
             return
         m = RE_DL.search(line)
         if m: self.activity = "dl %s/%s" % (m.group(1), m.group(2)); return
-        if "telechargement" in line and "bootstrap" in line:
+        if "downloading" in line and "bootstrap" in line:
             name = line.rsplit("/", 1)[-1][:60]; self.activity = "dl " + name; return
         m = RE_COMP.search(line)
         if m: self.sub = int(m.group(1)) / max(1, int(m.group(2))); self.activity = "compile %s/%s" % (m.group(1), m.group(2)); return

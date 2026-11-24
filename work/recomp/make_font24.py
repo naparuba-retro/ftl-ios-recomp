@@ -69,4 +69,4 @@ new_to = 24 + count * 16
 struct.pack_into(">H", out, 12, count); struct.pack_into(">i", out, 16, new_to)
 out += tex
 open(dst, "wb").write(out)
-print("ecrit", dst, len(out), "octets ;", len(newent), "glyphes ajoutes ; texture a", new_to)
+print("written", dst, len(out), "bytes;", len(newent), "glyphs added; texture at", new_to)

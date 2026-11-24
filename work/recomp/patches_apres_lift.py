@@ -11,8 +11,8 @@ old = "if (t3e00_1) { goto L_0011c224; }"
 j = s.index(old, i)
 assert j - i < 400, "motif inattendu"
 if "G4(0x38) < 0x80u" in s[i:j + 120]:
-    print("deja applique")
+    print("already applied")
 else:
     s = s[:j] + "if (t3e00_1 && G4(0x38) < 0x80u) { goto L_0011c224; }" + s[j + len(old):]
     open(f, "w", errors="replace").write(s)
-    print("correctif applique dans", f)
+    print("fix applied in", f)

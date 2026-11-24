@@ -99,7 +99,7 @@ class Scanner:
         import detect_pc_ftl
         info = detect_pc_ftl.inspect(path)
         if not info or not info["has_fr"]: self.pc, self.pc_state = {"path": path, "bad": True}, "bad"; return
-        info["store"] = "choix manuel"; info["warnings"] = [] if info["vanilla"] else ["mod"]
+        info["store"] = "manual choice"; info["warnings"] = [] if info["vanilla"] else ["mod"]
         self.pc, self.pc_state = info, "found"
 
 

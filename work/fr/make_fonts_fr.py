@@ -93,5 +93,5 @@ if __name__ == '__main__':
         if e[0].startswith('fonts/') and e[0].endswith('.ttf') and 'Justin' in e[0]:
             r = extend(k.read(e))
             if r:
-                open(os.path.join(d, os.path.basename(e[0])), 'wb').write(r); print('etendu', e[0], len(r))
-            else: print('deja accentue', e[0])
+                open(os.path.join(d, os.path.basename(e[0])), 'wb').write(r); print('extended', e[0], len(r))
+            else: print('already accented', e[0])

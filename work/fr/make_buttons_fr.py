@@ -27,14 +27,14 @@ done = []; skipped = []
 for n, e in sorted(npc.items()):
     if not (n.startswith('img/loc-fr/') and n.endswith('.png')): continue
     base = n[len('img/loc-fr/'):-4]
-    if base in SKIP: skipped.append((base, 'exclue (mise en page differente)')); continue
+    if base in SKIP: skipped.append((base, 'excluded (different layout)')); continue
     tex = next((c for c in ('img/%s.tex' % base, 'img/ipad/%s.tex' % base) if c in ni), None)
     en = 'img/%s.png' % base
-    if not tex or en not in npc: skipped.append((base, 'pas d\'equivalent iOS' if not tex else 'pas de PNG anglais PC')); continue
+    if not tex or en not in npc: skipped.append((base, 'no iOS equivalent' if not tex else 'no English PC PNG')); continue
     a, hdr = read_tex(ios.read(ni[tex]))
     fr = Image.open(io.BytesIO(pc.read(e))).convert('RGBA')
     ia, fb = bbox(a), bbox(fr)
-    if not ia or not fb: skipped.append((base, 'vide')); continue
+    if not ia or not fb: skipped.append((base, 'empty')); continue
     W, H = a.size; ix0, iy0, ix1, iy1 = ia; fx0, fy0, fx1, fy1 = fb
     if base.startswith('main_menus/'):
         # boutons du menu : position gauche fixe dans le jeu et alignement a droite -> on garde la taille iOS ;
@@ -61,5 +61,5 @@ for n, e in sorted(npc.items()):
         sheet = Image.new('RGBA', (max(a.width, canvas.width) + 10, H * 2 + 10), (40, 40, 60, 255))
         sheet.alpha_composite(a, (0, 0)); sheet.alpha_composite(canvas, (0, H + 10)); sheet.save(os.path.join(prev, name + '.png'))
 for d in done: print('ok   ', d)
-for s in skipped: print('saute', s)
-print(len(done), 'images remplacees,', len(skipped), 'sautees')
+for s in skipped: print('skipped', s)
+print(len(done), 'images replaced,', len(skipped), 'skipped')

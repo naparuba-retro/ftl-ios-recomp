@@ -93,20 +93,20 @@ def make_shots(root, font_dir, T, outdir):
         U.surface_to_png(surf, os.path.join(outdir, name + ".png"))
         print("capture", name)
 
-    app.state = "setup"; sc.ipa_state, sc.pc_state = "none", "none"; app.focus = "open_dir"; shot("1_premier_lancement_vide")
-    sc.ipa_path, sc.ipa_state, sc.pc, sc.pc_state = ipa, "ok", pc, "found"; app.focus = "build"; app.focus_set_once = True; shot("2_pret_a_construire")
-    sc.ipa_state = "verifying"; app.focus = "browse_ipa"; shot("3_verification")
-    sc.ipa_state = "bad"; shot("4_mauvais_ipa")
-    sc.ipa_state, sc.pc_state, sc.pc = "ok", "none", None; app.focus = "build"; shot("5_sans_ftl_pc")
-    app.open_browse("ipa"); app.browse_cd(root); shot("6_parcourir")
+    app.state = "setup"; sc.ipa_state, sc.pc_state = "none", "none"; app.focus = "open_dir"; shot("1_first_launch_empty")
+    sc.ipa_path, sc.ipa_state, sc.pc, sc.pc_state = ipa, "ok", pc, "found"; app.focus = "build"; app.focus_set_once = True; shot("2_ready_to_build")
+    sc.ipa_state = "verifying"; app.focus = "browse_ipa"; shot("3_checking")
+    sc.ipa_state = "bad"; shot("4_wrong_ipa")
+    sc.ipa_state, sc.pc_state, sc.pc = "ok", "none", None; app.focus = "build"; shot("5_no_pc_ftl")
+    app.open_browse("ipa"); app.browse_cd(root); shot("6_browse")
     r2 = build.BuildRunner(root, ipa, pc["path"]); r2.state = "running"; r2.done = {"extract", "ghidra", "lift", "patch"}; r2.stage = "compile"; r2.t0 = time.time() - 754
-    r2.activity = "compile 31/64"; r2.lines = ["[build] === etape : compile", "[build] compilation de 64 fichiers avec Zig (x86_64-windows-gnu)", "[build]    10 / 64 (19 s)", "[build]    20 / 64 (26 s)", "[build]    30 / 64 (40 s)"]
-    r2.sub = 31 / 64; app.runner, app.state, app.focus = r2, "build", "cancel"; shot("7_construction")
-    r2.done = {"extract"}; r2.stage = "ghidra"; r2.activity = "dl ghidra_12.2_PUBLIC_20261016.zip"; r2.t0 = time.time() - 95; r2.sub = 0.2; shot("8_construction_telechargement")
-    r2.state, r2.error_stage = "error", "compile"; r2.lines = ["[build] === etape : compile", "ERREUR : 1 fichier(s) en echec", "--- hle_sound.c", "hle_sound.c:154:16: error: incompatible function pointer types passing", "  void (*)(void)  vs  int (*)(void)", "1 error generated."]
-    app.state, app.focus = "error", "retry"; shot("9_erreur")
-    app.runner = None; g = os.path.join(root, "build", "game"); app.game_dir = g; app.state, app.focus = "ready", "play"; shot("10_pret_a_jouer")
-    app.modal = "rebuild"; shot("11_confirmer_reconstruire")
+    r2.activity = "compile 31/64"; r2.lines = ["[build] === stage : compile", "[build] compiling 64 files with Zig (x86_64-windows-gnu)", "[build]    10 / 64 (19 s)", "[build]    20 / 64 (26 s)", "[build]    30 / 64 (40 s)"]
+    r2.sub = 31 / 64; app.runner, app.state, app.focus = r2, "build", "cancel"; shot("7_building")
+    r2.done = {"extract"}; r2.stage = "ghidra"; r2.activity = "dl ghidra_12.2_PUBLIC_20261016.zip"; r2.t0 = time.time() - 95; r2.sub = 0.2; shot("8_build_download")
+    r2.state, r2.error_stage = "error", "compile"; r2.lines = ["[build] === stage : compile", "ERROR: 1 file(s) failed", "--- hle_sound.c", "hle_sound.c:154:16: error: incompatible function pointer types passing", "  void (*)(void)  vs  int (*)(void)", "1 error generated."]
+    app.state, app.focus = "error", "retry"; shot("9_error")
+    app.runner = None; g = os.path.join(root, "build", "game"); app.game_dir = g; app.state, app.focus = "ready", "play"; shot("10_ready_to_play")
+    app.modal = "rebuild"; shot("11_confirm_rebuild")
     return 0
 
 

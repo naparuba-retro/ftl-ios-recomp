@@ -32,7 +32,7 @@ python play.py        (Windows : double-clic sur play.bat ; Linux / Steam Deck :
 Au **premier lancement** (aucun jeu construit), un écran guide en trois étapes : ton IPA (déposé dans le dossier `ipa/`, glissé dans la fenêtre, trouvé automatiquement
 dans Téléchargements, sur une clé USB..., ou choisi avec « Parcourir »), ton FTL PC pour le français (détecté tout seul s'il existe), puis **Construire** : une
 progression montre chaque étape. Ensuite l'écran **Jouer** lance le jeu (changement de langue et reconstruction possibles). Clavier, souris, **manette** (Steam Deck)
-et glisser-déposer sont gérés. `python play.py --demo` montre le parcours avec un faux build ; `--shots DIR` écrit une capture de chaque écran ; `--selftest` teste les enchaînements.
+et glisser-déposer sont gérés. L'interface est en **anglais** par défaut (`--lang fr` ou `FTL_LANG=fr` pour le français). `python play.py --demo` montre le parcours avec un faux build ; `--shots DIR` écrit une capture de chaque écran ; `--selftest` teste les enchaînements.
 SDL2 (pysdl2) et deux polices libres (Press Start 2P, VT323 ; licence OFL) sont téléchargés dans `tools/` comme le reste.
 
 ## Utilisation en ligne de commande

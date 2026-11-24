@@ -289,10 +289,10 @@ class App:
         ui.panel(40, 392, W - 80, 134)
         ui.title(T["step2"], 66, 410, U.CYAN, 16)
         if s.pc_state == "found" and s.pc:
-            ui.text("%s : %s" % (T["pc_found"], s.pc.get("store", "")), 66, 440, U.GREEN if self.want_fr else U.DIM, 28)
+            ui.text("%s%s %s" % (T["pc_found"], T["colon"], s.pc.get("store", "")), 66, 440, U.GREEN if self.want_fr else U.DIM, 28)
             ui.text(fit(ui, s.pc["path"], W - 460), 66, 468, U.DIM, 26)
             if s.pc.get("warnings"): ui.text(T["pc_warn"], 66, 494, U.YELLOW, 24)
-            self.add("use_fr", ("[X] " if self.want_fr else "[  ] ") + ("FRANÇAIS" if self.T is i18n.FR else "FRENCH"), W - 400, 434, 330, 40, small=True)
+            self.add("use_fr", ("[X] " if self.want_fr else "[  ] ") + T["use_fr"], W - 400, 434, 330, 40, small=True)
             self.add("browse_pc", T["btn_browse"], W - 400, 480, 330, 36, small=True)
         elif s.pc_state == "bad":
             ui.cross(66, 440); ui.text(T["pc_bad"], 106, 438, U.RED, 28)
@@ -314,7 +314,7 @@ class App:
         b = self.browse
         ui.header(T["browse_title"], T["browse_ipa"] if b["kind"] == "ipa" else T["browse_dat"])
         ui.panel(40, 128, W - 80, 540)
-        ui.text("%s : %s" % (T["folder"], fit(ui, b["dir"] or "(PC)", W - 260)), 66, 148, U.YELLOW, 28)
+        ui.text("%s%s %s" % (T["folder"], T["colon"], fit(ui, b["dir"] or "(PC)", W - 260)), 66, 148, U.YELLOW, 28)
         ui.rect(60, 196, W - 120, 14 * 34 + 8, (8, 12, 18), 220)
         if b["idx"] < b["scroll"]: b["scroll"] = b["idx"]
         if b["idx"] >= b["scroll"] + 14: b["scroll"] = b["idx"] - 13
@@ -361,7 +361,7 @@ class App:
         r = self.runner
         ui.header(T["error_title"], T["error_sub"])
         ui.panel(40, 128, W - 80, 430, border=U.RED)
-        if r and r.error_stage: ui.title("%s : %s" % (T["error_at"], T.get("stage_" + r.error_stage, r.error_stage)), 66, 152, U.RED, 16)
+        if r and r.error_stage: ui.title("%s%s %s" % (T["error_at"], T["colon"], T.get("stage_" + r.error_stage, r.error_stage)), 66, 152, U.RED, 16)
         lines = (r.lines[-13:] if r else [])
         for k, line in enumerate(lines): ui.text(fit(ui, line, W - 150, 24), 66, 196 + k * 27, U.TEXT, 24)
         self.add("retry", T["btn_retry"], 66, 590, 300, 52, primary=True)

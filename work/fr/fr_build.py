@@ -104,5 +104,5 @@ with open(os.path.join(out, 'rapport_traduction.tsv'), 'w', encoding='utf-8') as
 s = {k: v for k, v in stats.items() if isinstance(k, str)}
 tot = s.get('A', 0) + s.get('B', 0) + s.get('C', 0) + s.get('miss', 0)
 done = tot - s.get('miss', 0)
-print(s); print('total', tot, 'traduits', done, '%.1f%%' % (100 * done / tot))
+print(s); print('total', tot, 'translated', done, '%.1f%%' % (100 * done / tot))
 json.dump({'stats': s, 'total': tot, 'files': sorted(newfiles)}, open(os.path.join(out, 'stats.json'), 'w'), indent=1)

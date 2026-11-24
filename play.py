@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Lanceur de FTL : au premier lancement (aucun jeu), un ecran guide la construction a partir de ton IPA ; ensuite, il lance le jeu.
+"""FTL launcher: on first launch (no game built yet) a screen guides the build from your IPA; afterwards it starts the game.
 
-    python play.py                 lance l'interface
-    python play.py --lang en       interface en anglais
-    python play.py --demo          demonstration avec un faux build (rien d'ecrit dans le dossier du projet)
-    python play.py --shots DIR     ecrit une capture PNG de chaque ecran (sans fenetre)
-    python play.py --selftest      teste les enchainements d'ecrans (sans fenetre)
+    python play.py                 start the interface (English; --lang fr for French, or FTL_LANG=fr)
+    python play.py --demo          walk-through with a fake build (nothing is written to the project folder)
+    python play.py --shots DIR     write a PNG of every screen (no window)
+    python play.py --selftest      test the screen flow (no window)
 
-Aucune installation : SDL2 et les polices sont recuperes automatiquement dans ./tools (bootstrap.py)."""
+Nothing to install: SDL2 and the fonts are fetched automatically into ./tools (bootstrap.py)."""
 import os, sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))

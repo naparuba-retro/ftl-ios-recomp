@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Reconstruit le port FTL (iPad 1.5.10 -> PC / Linux) a partir de VOTRE copie de l'IPA.
+"""Rebuilds the FTL port (iPad 1.5.10 -> PC / Linux) from YOUR copy of the IPA.
 
-    python build_from_ipa.py --ipa FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa [--out build] [--ghidra DIR] [--jdk DIR]
-                             [--pc-ftl-dat "C:/Games/FTL/ftl.dat.vanilla"]   (facultatif : traduction francaise)
+    python build_from_ipa.py --ipa FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa [--out build] [--pc-ftl-dat auto]
 
-Etapes (--only a,b / --skip a,b) :
-  extract  : extrait de l'IPA l'executable (Mach-O armv7) et ftl.dat, verifie les SHA-256 (binary.toml)
-  ghidra   : importe l'executable dans un projet Ghidra temporaire (analyse automatique) + FixSwitch.java
-  lift     : Lift.java traduit le code ARM en C -> <out>/gen (gen_funcs_*.c, memoire du jeu mem_*.bin...)
-  patch    : patches_apres_lift.py (correctifs du code genere) + binary_config.h (adresses propres au binaire)
-  compile  : compile le code genere et le runtime (Windows : Visual Studio ; Linux : gcc + SDL2)
-  game     : assemble <out>/game (executable, ftl.dat, genj/, override/24.font)
-  fr       : (avec --pc-ftl-dat) patch francais : textes, polices accentuees, boutons
+Stages (--only a,b / --skip a,b):
+  extract  : extracts the Mach-O armv7 executable and ftl.dat from the IPA and checks their SHA-256 (binary.toml)
+  ghidra   : imports the executable into a temporary Ghidra project (automatic analysis) + FixSwitch.java
+  lift     : Lift.java translates the ARM code to C -> <out>/gen
+  patch    : patches_apres_lift.py (fixes to the generated code) + binary_config.h (binary-specific addresses)
+  compile  : compiles the generated code and the runtime (Zig by default; --compiler system for Visual Studio / gcc)
+  game     : assembles <out>/game (executable, ftl.dat, genj/, override/24.font)
+  fr       : (with --pc-ftl-dat) French patch: texts, accented fonts, buttons
 
-Rien du jeu n'est dans le depot : tout ce qui est genere reste dans <out> (ignore par git).
-Prerequis : Python 3.11+, Ghidra 12.2 (https://ghidra-sre.org), JDK 21+ (Temurin...), et Visual Studio (Build Tools, C++) sous Windows
-ou gcc + make + libsdl2-dev + libgl-dev sous Linux. Ghidra et le JDK peuvent aussi etre poses dans ./tools/ (ghidra_*/ et jdk*/).
-"""
+Nothing from the game is in the repository: everything generated stays in <out> (ignored by git).
+Only Python 3.11+ is required: Ghidra, the JDK, the compiler, SDL2 headers... are downloaded into ./tools by bootstrap.py."""
 import argparse, glob, hashlib, os, platform, shutil, subprocess, sys, time, zipfile
 
 try:
@@ -50,7 +47,7 @@ def be_gentle(c):
     if shutil.which("ionice"):
         try: subprocess.run(["ionice", "-c3", "-p", str(os.getpid())], capture_output=True)
         except OSError: pass
-    log("priorite minimale (nice 19, ionice idle), %d tache(s) en parallele (--jobs / --no-nice pour changer)" % c.jobs)
+    log("lowest priority (nice 19, ionice idle), %d parallel task(s) (--jobs / --no-nice to change)" % c.jobs)
 def die(msg): sys.exit("ERREUR : " + msg)
 def sha256(path):
     h = hashlib.sha256()
@@ -83,7 +80,7 @@ def run(cmd, logfile=None, cwd=None, env=None, shell=False):
         if logfile:
             tail = open(logfile, "rb").read().decode("cp850" if IS_WIN else "utf-8", "replace").splitlines()[-25:]
             print("\n".join(tail))
-        die("commande en echec (code %d)%s" % (r.returncode, " ; journal : " + logfile if logfile else ""))
+        die("command failed (code %d)%s" % (r.returncode, "; log: " + logfile if logfile else ""))
 
 
 # ---------------------------------------------------------------- outils
@@ -92,14 +89,14 @@ def find_ghidra(arg):
     for c in cands:
         if c and os.path.isfile(os.path.join(c, "support", "analyzeHeadless" + (".bat" if IS_WIN else ""))): return os.path.abspath(c)
     if not NO_DL: return bootstrap.ghidra()
-    die("Ghidra introuvable : --ghidra DIR, variable GHIDRA_INSTALL_DIR, ou ./tools/ghidra_12.2_PUBLIC (ou retirez --no-download)")
+    die("Ghidra not found: --ghidra DIR, GHIDRA_INSTALL_DIR variable, or ./tools/ghidra_12.2_PUBLIC (or drop --no-download)")
 
 def find_jdk(arg):
     cands = [arg, os.environ.get("JAVA_HOME")] + sorted(glob.glob(os.path.join(ROOT, "tools", "jdk*", "jdk*")))
     for c in cands:
         if c and os.path.isfile(os.path.join(c, "bin", "java" + (".exe" if IS_WIN else ""))): return os.path.abspath(c)
     if not NO_DL: return bootstrap.jdk()
-    die("JDK introuvable : --jdk DIR ou variable JAVA_HOME (JDK 21 ou plus) (ou retirez --no-download)")
+    die("JDK not found: --jdk DIR or JAVA_HOME variable (JDK 21 or newer) (or drop --no-download)")
 
 def check_ghidra_version(ghidra, want):
     p = os.path.join(ghidra, "Ghidra", "application.properties")
@@ -108,7 +105,7 @@ def check_ghidra_version(ghidra, want):
         for l in open(p):
             if l.startswith("application.version="): ver = l.split("=", 1)[1].strip()
     if not ver.startswith(want):
-        log("ATTENTION : Ghidra %s trouve, %s attendu (le resultat peut differer)" % (ver or "?", want))
+        log("WARNING: Ghidra %s found, %s expected (the result may differ)" % (ver or "?", want))
 
 
 def ghidra_env(c):
@@ -126,28 +123,28 @@ def headless(c, args, logname):
 # ---------------------------------------------------------------- etapes
 def st_extract(c):
     ipa = c.args.ipa
-    if not ipa or not os.path.isfile(ipa): die("--ipa FICHIER.ipa requis")
+    if not ipa or not os.path.isfile(ipa): die("--ipa FILE.ipa required")
     h = sha256(ipa)
     if h != c.cfg["source"]["ipa_sha256"]:
         if not c.args.skip_hash_check:
-            die("SHA-256 de l'IPA inattendu :\n  obtenu  %s\n  attendu %s\nCe port ne fonctionne qu'avec l'IPA FTL 1.5.10 d'origine (--skip-hash-check pour forcer)." % (h, c.cfg["source"]["ipa_sha256"]))
-        log("ATTENTION : IPA different de la version attendue")
+            die("unexpected IPA SHA-256:\n  got      %s\n  expected %s\nThis port only works with the original FTL 1.5.10 IPA (--skip-hash-check to force)." % (h, c.cfg["source"]["ipa_sha256"]))
+        log("WARNING: the IPA differs from the expected version")
     d = os.path.join(c.out, "ipa"); os.makedirs(d, exist_ok=True)
     with zipfile.ZipFile(ipa) as z:
         names = z.namelist()
         exe = next((n for n in names if n.count("/") == 2 and n.startswith("Payload/") and n.endswith(".app/FTL")), None)
         dat = next((n for n in names if n.endswith(".app/ftl.dat")), None)
-        if not exe or not dat: die("Payload/*.app/FTL ou ftl.dat absent de l'IPA")
+        if not exe or not dat: die("Payload/*.app/FTL or ftl.dat missing from the IPA")
         for n, out in ((exe, "FTL"), (dat, "ftl.dat")):
             with z.open(n) as src, open(os.path.join(d, out), "wb") as dst: shutil.copyfileobj(src, dst)
     hb = sha256(os.path.join(d, "FTL"))
     if hb != c.cfg["source"]["binary_sha256"] and not c.args.skip_hash_check:
-        die("SHA-256 de l'executable inattendu (%s) : l'IPA est probablement chiffre (FairPlay) ou modifie. Il faut un IPA decrypte." % hb)
-    log("extrait :", d)
+        die("unexpected executable SHA-256 (%s): the IPA is probably encrypted (FairPlay) or modified. A decrypted IPA is required." % hb)
+    log("extracted:", d)
 
 
 def st_ghidra(c):
-    if done(c, "ghidra") : return log("ghidra : deja fait")
+    if done(c, "ghidra") : return log("ghidra: already done")
     shutil.rmtree(os.path.join(c.out, "ghidra"), ignore_errors=True); os.makedirs(os.path.join(c.out, "ghidra"))
     headless(c, ["-import", os.path.join(c.out, "ipa", "FTL"), "-overwrite"], "ghidra_import.log")      # analyse automatique par defaut
     headless(c, ["-process", "FTL", "-noanalysis", "-scriptPath", SCRIPTS, "-postScript", "FixSwitch.java"], "ghidra_fixswitch.log")
@@ -155,11 +152,11 @@ def st_ghidra(c):
 
 
 def st_lift(c):
-    if done(c, "lift"): return log("lift : deja fait")
+    if done(c, "lift"): return log("lift: already done")
     gen = os.path.join(c.out, "gen"); shutil.rmtree(gen, ignore_errors=True); os.makedirs(gen)
     L = c.cfg["lift"]
     headless(c, ["-process", "FTL", "-noanalysis", "-scriptPath", SCRIPTS, "-postScript", "Lift.java", gen, L["mode"]] + ["OVERRIDE:" + o for o in L["overrides"]], "ghidra_lift.log")
-    if not os.path.exists(os.path.join(gen, "blocks.txt")): die("Lift.java n'a rien produit (voir logs/ghidra_lift.log)")
+    if not os.path.exists(os.path.join(gen, "blocks.txt")): die("Lift.java produced nothing (see logs/ghidra_lift.log)")
     mark(c, "lift")
 
 
@@ -177,7 +174,7 @@ def vcvars():
         if p:
             v = os.path.join(p, "VC", "Auxiliary", "Build", "vcvars64.bat")
             if os.path.exists(v): return v
-    die("Visual Studio (outils C++ x64) introuvable : installez les Build Tools de Visual Studio")
+    die("Visual Studio (C++ x64 tools) not found: install the Visual Studio Build Tools")
 
 
 def st_compile_system(c):
@@ -210,7 +207,7 @@ def st_compile_system(c):
 def find_lib(name):
     for d in ("/usr/lib/x86_64-linux-gnu", "/usr/lib64", "/usr/lib", "/lib/x86_64-linux-gnu", "/lib64", "/usr/local/lib"):
         if os.path.exists(os.path.join(d, name)): return d
-    die("bibliotheque %s introuvable sur ce systeme (le runtime SDL2/OpenGL doit etre installe ; present sur un Linux de bureau et le Steam Deck)" % name)
+    die("library %s not found on this system (the SDL2/OpenGL runtime must be installed; it is on a desktop Linux and on the Steam Deck)" % name)
 
 
 def st_compile(c):
@@ -232,7 +229,7 @@ def st_compile(c):
     stubs = os.path.join(obj, "stubs.c"); open(stubs, "w").write(r.stdout)
     jobs = [(f, os.path.join(obj, "gen", os.path.basename(f)[:-2] + ".o")) for f in sorted(glob.glob(os.path.join(gen, "gen_*.c")))]
     jobs += [(os.path.join(RECOMP, f), os.path.join(obj, "rt", f[:-2] + ".o")) for f in rtsrc] + [(stubs, os.path.join(obj, "rt", "stubs.o"))]
-    log("compilation de %d fichiers avec Zig (%s)" % (len(jobs), target))
+    log("compiling %d files with Zig (%s)" % (len(jobs), target))
     def one(job):
         src, o = job
         if os.path.exists(o) and os.path.getmtime(o) > os.path.getmtime(src): return None
@@ -245,7 +242,7 @@ def st_compile(c):
             if (i + 1) % 10 == 0: log("   %d / %d (%.0f s)" % (i + 1, len(jobs), time.time() - t0))
     if fails:
         for src, err in fails[:3]: print("--- " + src + "\n" + err)
-        die("%d fichier(s) en echec" % len(fails))
+        die("%d file(s) failed" % len(fails))
     exe = os.path.join(binp, "ftl_pc.exe" if IS_WIN else "ftl_linux")
     link = [zig, "cc", "-target", target, "-o", exe] + [o for _, o in jobs]
     if IS_WIN: link += ["-lopengl32", "-luser32", "-lgdi32", "-lwinmm", "-ldbghelp", "-Wl,--stack,268435456"]
@@ -253,7 +250,7 @@ def st_compile(c):
         link += ["-s", "-pthread", "-lm", "-ldl", "-Wl,--allow-shlib-undefined"]   # -s : sans symboles de debug (64 Mo -> ~10 Mo)
         for lib in ("libSDL2-2.0.so.0", "libGL.so.1"): link += ["-L" + find_lib(lib), "-l:" + lib]
     run(link, logfile=os.path.join(c.out, "logs", "link.log"), env=env)
-    log("executable :", exe)
+    log("executable:", exe)
 
 
 def st_game(c):
@@ -276,21 +273,21 @@ def st_game(c):
     else:
         for n in ("run.sh", "enregistrer.sh", "rejouer.sh", "langue.sh"): shutil.copy2(os.path.join(ROOT, "steamdeck", n), os.path.join(g, n))
         for n in ("ftl_linux", "run.sh", "enregistrer.sh", "rejouer.sh", "langue.sh"): os.chmod(os.path.join(g, n), 0o755)   # droits perdus par git archive / zip
-    log("jeu pret :", g)
+    log("game ready:", g)
 
 
 def st_fr(c):
     pc = c.args.pc_ftl_dat
-    if not pc: return log("fr : ignore (pas de --pc-ftl-dat ; --pc-ftl-dat auto pour chercher votre FTL PC)")
+    if not pc: return log("fr: skipped (no --pc-ftl-dat; use --pc-ftl-dat auto to look for your PC copy of FTL)")
     import detect_pc_ftl
     if pc == "auto":
         b = detect_pc_ftl.best()
-        if not b: return log("fr : ignore, aucune installation de FTL PC avec le francais trouvee (donnez --pc-ftl-dat <chemin>)")
-        pc = b["path"]; log("FTL PC detecte (%s) : %s" % (b["store"], pc))
+        if not b: return log("fr: skipped, no PC installation of FTL with French text found (pass --pc-ftl-dat <path>)")
+        pc = b["path"]; log("PC copy of FTL found (%s): %s" % (b["store"], pc))
     else:
         ok, msg = detect_pc_ftl.check_file(pc)
-        if not ok: die("--pc-ftl-dat : " + msg)
-        log("--pc-ftl-dat : " + msg)
+        if not ok: die("--pc-ftl-dat: " + msg)
+        log("--pc-ftl-dat: " + msg)
     g = os.path.join(c.out, "game"); fo = os.path.join(c.out, "fr"); shutil.rmtree(fo, ignore_errors=True)
     en = os.path.join(c.out, "ipa", "ftl.dat")
     py = [sys.executable]
@@ -300,7 +297,7 @@ def st_fr(c):
     run(py + [os.path.join(FRDIR, "make_buttons_fr.py"), pc, en, fo], cwd=FRDIR, env=env)
     shutil.copy2(en, os.path.join(g, "ftl_en.dat"))
     run(py + [os.path.join(FRDIR, "apply_fr.py"), en, fo, os.path.join(g, "ftl.dat")], cwd=FRDIR, env=env)
-    log("francais applique : ftl.dat (fr) et ftl_en.dat (anglais) dans", g)
+    log("French applied: ftl.dat (French) and ftl_en.dat (English) in", g)
 
 
 def main():
@@ -308,13 +305,13 @@ def main():
     except Exception: pass
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ipa"); ap.add_argument("--out", default=os.path.join(ROOT, "build"))
-    ap.add_argument("--ghidra"); ap.add_argument("--jdk"); ap.add_argument("--pc-ftl-dat", help="ftl.dat de votre FTL PC (francais officiel), ou \"auto\" pour le chercher")
-    ap.add_argument("--compiler", choices=["zig", "system"], default="zig", help="zig (telecharge, defaut) ou compilateur du systeme (Visual Studio / gcc+make)")
-    ap.add_argument("--no-download", action="store_true", help="ne telecharge rien : utilise --ghidra/--jdk ou ./tools")
-    ap.add_argument("--jobs", type=int, help="nombre de taches en parallele (defaut : tous les coeurs ; la moitie sous Linux)")
-    ap.add_argument("--no-nice", action="store_true", help="Linux : ne pas baisser la priorite du build")
+    ap.add_argument("--ghidra"); ap.add_argument("--jdk"); ap.add_argument("--pc-ftl-dat", help="ftl.dat of your PC copy of FTL (official French), or \"auto\" to look for it")
+    ap.add_argument("--compiler", choices=["zig", "system"], default="zig", help="zig (downloaded, default) or the system compiler (Visual Studio / gcc+make)")
+    ap.add_argument("--no-download", action="store_true", help="download nothing: use --ghidra/--jdk or ./tools")
+    ap.add_argument("--jobs", type=int, help="number of parallel tasks (default: all cores; half of them on Linux)")
+    ap.add_argument("--no-nice", action="store_true", help="Linux: do not lower the build priority")
     ap.add_argument("--only"); ap.add_argument("--skip"); ap.add_argument("--skip-hash-check", action="store_true")
-    ap.add_argument("--force", action="store_true", help="refait aussi Ghidra et Lift meme si deja faits")
+    ap.add_argument("--force", action="store_true", help="redo Ghidra and Lift even if already done")
     c = Ctx(); c.args = ap.parse_args(); c.out = os.path.abspath(c.args.out)
     for k in ("ipa", "pc_ftl_dat", "ghidra", "jdk"):      # chemins absolus : les sous-processus changent de dossier
         v = getattr(c.args, k)
@@ -326,7 +323,7 @@ def main():
     stages = c.args.only.split(",") if c.args.only else list(STAGES)
     if c.args.skip: stages = [s for s in stages if s not in c.args.skip.split(",")]
     for s in stages:
-        if s not in STAGES: die("etape inconnue : " + s)
+        if s not in STAGES: die("unknown stage: " + s)
     if c.args.force:
         for s in ("ghidra", "lift"):
             if os.path.exists(stamp(c, s)): os.remove(stamp(c, s))
@@ -337,9 +334,9 @@ def main():
     os.makedirs(c.out, exist_ok=True)
     t0 = time.time()
     for s in stages:
-        log("=== etape :", s)
+        log("=== stage :", s)
         globals()["st_" + s](c)
-    log("termine en %.0f s" % (time.time() - t0))
+    log("done in %.0f s" % (time.time() - t0))
 
 
 if __name__ == "__main__":
