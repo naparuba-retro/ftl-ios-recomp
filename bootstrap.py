@@ -39,6 +39,13 @@ DEPS = {
              "sha256": "f15b478253e1ff6dac62257ded225ff4e7d0c5230204ac3450f1144ee806f934", "dir": "SDL2-2.32.4"},
 }
 PYPI = {"pillow": "13.0.0", "fonttools": "4.68.0"}     # versions epinglees ; le SHA-256 vient des metadonnees PyPI (HTTPS)
+UI_PYPI = {"pysdl2": "0.9.17", "pysdl2-dll": "2.32.10"}  # interface graphique du lanceur : SDL2 (fenetre, manette) + SDL2_ttf
+FONTS = {   # polices libres (SIL OFL 1.1), telechargees et non redistribuees : depot google/fonts, commit epingle
+    "PressStart2P-Regular.ttf": {"url": "https://raw.githubusercontent.com/google/fonts/83c62e30d87daa70216dab6b984d00d20d96d585/ofl/pressstart2p/PressStart2P-Regular.ttf",
+                                 "sha256": "034c77f1f05ec89421e4a63f0e3a4ca1ecf852cc6d2bf611f126f275728e017d"},
+    "VT323-Regular.ttf": {"url": "https://raw.githubusercontent.com/google/fonts/83c62e30d87daa70216dab6b984d00d20d96d585/ofl/vt323/VT323-Regular.ttf",
+                          "sha256": "cf4de751ada78ceac033dbe16a687742939995b77bc2a052ae17a4957958594d"},
+}
 
 
 def log(*a): print("[bootstrap]", *a, flush=True)
@@ -135,19 +142,21 @@ def sdl2_include():
         shutil.rmtree(out, ignore_errors=True); shutil.copytree(os.path.join(d, "include"), os.path.join(out, "SDL2"))
     return out
 
-def pylibs():
-    """Pillow et fontTools (roues PyPI) decompressees dans tools/pylibs ; renvoie ce dossier (a mettre dans PYTHONPATH)."""
-    d = os.path.join(TOOLS, "pylibs"); ok = os.path.join(d, ".ok-%s-%d%d" % (OSK, sys.version_info[0], sys.version_info[1]))
+def pylibs(packages=None, name="base"):
+    """Roues PyPI decompressees dans tools/pylibs ; renvoie ce dossier (a mettre dans PYTHONPATH). Par defaut : Pillow et fontTools (patch francais)."""
+    packages = packages or PYPI
+    d = os.path.join(TOOLS, "pylibs"); ok = os.path.join(d, ".ok-%s-%s-%d%d" % (name, OSK, sys.version_info[0], sys.version_info[1]))
     if os.path.exists(ok): return d
     tag = "cp%d%d" % sys.version_info[:2]
-    for pkg, ver in PYPI.items():
+    for pkg, ver in packages.items():
         meta = json.load(urllib.request.urlopen("https://pypi.org/pypi/%s/%s/json" % (pkg, ver), timeout=60))
         files = meta["urls"]
         def pick():
             pure = [f for f in files if f["filename"].endswith("none-any.whl")]
             if pure: return pure[0]
-            cands = [f for f in files if f["filename"].endswith(".whl") and "-%s-%s-" % (tag, tag) in f["filename"]
-                     and (("win_amd64" in f["filename"]) if IS_WIN else ("manylinux" in f["filename"] and "x86_64" in f["filename"]))]
+            plat = lambda n: ("win_amd64" in n) if IS_WIN else ("manylinux" in n and "x86_64" in n)
+            cands = [f for f in files if f["filename"].endswith(".whl") and ("-%s-%s-" % (tag, tag) in f["filename"] or "-py2.py3-none-" in f["filename"] or "-py3-none-" in f["filename"])
+                     and plat(f["filename"])]
             return cands[0] if cands else None
         f = pick()
         if not f: sys.exit("ERREUR : aucune roue %s %s pour Python %s sur %s" % (pkg, ver, tag, OSK))
@@ -155,6 +164,17 @@ def pylibs():
         log("installation locale de", f["filename"])
         _extract(w, d)
     open(ok, "w").write("ok\n")
+    return d
+
+
+def ui_libs():
+    """pysdl2 + SDL2 (roues PyPI) pour l'interface du lanceur ; renvoie le dossier a ajouter a sys.path."""
+    return pylibs(UI_PYPI, "ui")
+
+def fonts():
+    """Polices de l'interface (telechargees, SHA-256 verifie) dans tools/fonts ; renvoie le dossier."""
+    d = os.path.join(TOOLS, "fonts")
+    for name, spec in FONTS.items(): _get(spec["url"], os.path.join(d, name), spec["sha256"])
     return d
 
 

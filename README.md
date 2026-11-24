@@ -25,7 +25,17 @@ Vous pouvez aussi fournir vos propres outils : `--ghidra DIR`, `--jdk DIR`, `--c
 **Votre IPA** : `FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa` (version 1.5.10, **déchiffrée**), avec exactement le SHA-256 de
 [`work/recomp/binary.toml`](work/recomp/binary.toml) (`62bfa1cc…ea3e81b9`) : plusieurs adresses du binaire sont utilisées par le runtime.
 
-## Utilisation
+## Utilisation simple : le lanceur graphique
+```
+python play.py        (Windows : double-clic sur play.bat ; Linux / Steam Deck : play.sh)
+```
+Au **premier lancement** (aucun jeu construit), un écran guide en trois étapes : ton IPA (déposé dans le dossier `ipa/`, glissé dans la fenêtre, trouvé automatiquement
+dans Téléchargements, sur une clé USB..., ou choisi avec « Parcourir »), ton FTL PC pour le français (détecté tout seul s'il existe), puis **Construire** : une
+progression montre chaque étape. Ensuite l'écran **Jouer** lance le jeu (changement de langue et reconstruction possibles). Clavier, souris, **manette** (Steam Deck)
+et glisser-déposer sont gérés. `python play.py --demo` montre le parcours avec un faux build ; `--shots DIR` écrit une capture de chaque écran ; `--selftest` teste les enchaînements.
+SDL2 (pysdl2) et deux polices libres (Press Start 2P, VT323 ; licence OFL) sont téléchargés dans `tools/` comme le reste.
+
+## Utilisation en ligne de commande
 ```
 python build_from_ipa.py --ipa FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa
 python build_from_ipa.py --ipa ... --pc-ftl-dat auto                                # avec la traduction française (cherche votre FTL PC)
