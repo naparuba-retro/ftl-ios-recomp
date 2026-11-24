@@ -4,6 +4,7 @@ import glob, hashlib, os, platform, subprocess, sys, threading
 
 IS_WIN = platform.system() == "Windows"
 IPA_SIZE = 173605774
+IPA_EXAMPLE_URL = "https://archive.org/download/FTL__Faster_Than_Light_1.5.10_ios_6.0/FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa"   # exemple de version supportee
 IPA_SHA256 = "62bfa1ccb511479665bbcf73d8a9fca3c6606391e94d68ca9275eb5fea3e81b9"   # = work/recomp/binary.toml
 
 

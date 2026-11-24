@@ -41,8 +41,11 @@ def run(root, font_dir, argv):
     win, r = make_window(fullscreen)
     ui = U.UI(r, font_dir)
     cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "fake_build.py")] + (["fail"] if demo == "fail" else []) if demo else None
-    app = A.App(root, ui, T, demo=cmd)
-    if demo: app.scanner.ipa_path, app.scanner.ipa_state = os.path.join(root, "ipa", "FTL.ipa"), "ok"
+    app = A.App(root, ui, T, demo=cmd, scanning=not demo)
+    demo_t0 = time.time()
+    if demo:                                     # demonstration : on part de "rien trouve", l'IPA "arrive" apres 6 s
+        sc = app.scanner; sc._busy = True; app.next_rescan = 1e18; sc.ipa_state, sc.pc_state = "none", "none"
+        demo_pc = {"path": "C:/Games/FTL Advanced Edition/ftl.dat.vanilla", "store": "GOG", "warnings": [], "languages": ["fr"], "vanilla": True}
     for i in range(sdl2.SDL_NumJoysticks()):
         if sdl2.SDL_IsGameController(i): sdl2.SDL_GameControllerOpen(i)
     ev = sdl2.SDL_Event(); last = time.time()
@@ -52,11 +55,16 @@ def run(root, font_dir, argv):
         if smoke and n > smoke: print("fenetre ouverte et %d images dessinees : ok" % smoke); break
         while sdl2.SDL_PollEvent(ctypes.byref(ev)): app.handle(ev)
         now = time.time(); dt = now - last; last = now
+        if demo and app.state == "setup" and now - demo_t0 > 6 and app.scanner.ipa_state == "none":
+            app.scanner.ipa_path, app.scanner.ipa_state = os.path.join(root, "ipa", "FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa"), "verifying"
+        if demo and now - demo_t0 > 8 and app.scanner.ipa_state == "verifying":
+            app.scanner.ipa_state = "ok"; app.scanner.pc, app.scanner.pc_state = demo_pc, "found"
         app.draw(dt); sdl2.SDL_RenderPresent(r)
     if app.launch:
         exe, g = app.launch
         sdl2.SDL_HideWindow(win)
-        rc = subprocess.call([exe, "."], cwd=g)
+        try: rc = subprocess.call([exe, "."], cwd=g)
+        except OSError as e: print("lancement impossible :", e); rc = 1
         sdl2.SDL_Quit(); return rc
     sdl2.SDL_Quit(); return 0
 

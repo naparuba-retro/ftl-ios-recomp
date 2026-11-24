@@ -69,6 +69,7 @@ class App:
         s = self.scanner
         if wid == "quit": self.quit = True
         elif wid == "open_dir": scan.open_folder(self.ipa_dir)
+        elif wid == "copy_link": sdl2.SDL_SetClipboardText(scan.IPA_EXAMPLE_URL.encode()); self.copied_until = time.time() + 2.0
         elif wid == "browse_ipa": self.open_browse("ipa")
         elif wid == "browse_pc": self.open_browse("dat")
         elif wid == "use_fr": self.want_fr = not self.want_fr
@@ -237,6 +238,7 @@ class App:
             if w: self.focus = w
 
     mouse = (0, 0)
+    copied_until = 0.0
 
     def hint(self, text):
         self.ui.text(text, W // 2, H - 34, U.DIM, 24, anchor="c")
@@ -246,43 +248,49 @@ class App:
         if time.time() > self.next_rescan: s.rescan_ipa(); self.next_rescan = time.time() + 2.0
         ui.header(T["setup_title"], T["setup_sub"])
         # --- 1. IPA
-        ui.panel(40, 128, W - 80, 236)
+        ui.panel(40, 128, W - 80, 252)
         ui.title(T["step1"], 66, 150, U.CYAN, 16)
-        if s.ipa_state in ("none", "scanning"):
-            ui.text(T["step1_drop"], 66, 184, U.TEXT, 28)
-            ui.rect(66, 222, W - 132, 44, (8, 12, 18)); ui.frame(66, 222, W - 132, 44, U.YELLOW, 2)
-            ui.text(fit(ui, self.ipa_dir, W - 160), 80, 230, U.YELLOW, 28)
-            ui.text(T["scanning"] if s.ipa_state == "scanning" else T["ipa_none"], 66, 274, U.DIM, 26)
-            self.add("open_dir", T["btn_open"], 66, 310, 330, 44, small=True)
-            self.add("browse_ipa", T["btn_browse"], 412, 310, 230, 44, small=True)
+        if s.ipa_state in ("none", "scanning", "bad"):
+            if s.ipa_state == "bad":
+                ui.text(fit(ui, s.ipa_path or "", W - 170), 66, 184, U.TEXT, 28)
+                ui.cross(66, 220); ui.text(T["ipa_bad"], 106, 216, U.RED, 28)
+            else:
+                ui.text(T["step1_drop"], 66, 180, U.TEXT, 28)
+                ui.rect(66, 214, W - 132, 40, (8, 12, 18)); ui.frame(66, 214, W - 132, 40, U.YELLOW, 2)
+                ui.text(fit(ui, self.ipa_dir, W - 160), 80, 220, U.YELLOW, 28)
+                ui.text(T["scanning"] if s.ipa_state == "scanning" else T["ipa_none"], 66, 258, U.DIM, 26)
+            ui.text(T["ipa_example"], 66, 286, U.CYAN, 22)
+            ui.text(scan.IPA_EXAMPLE_URL, 66 + ui.measure(T["ipa_example"], size=22)[0] + 12, 286, U.TEXT, 20)
+            self.add("open_dir", T["btn_open"], 66, 326, 330, 44, small=True)
+            self.add("browse_ipa", T["btn_browse"], 412, 326, 230, 44, small=True)
+            self.add("copy_link", T["copied"] if time.time() < self.copied_until else T["btn_copy"], 658, 326, 290, 44, small=True)
         else:
-            ui.text(fit(ui, s.ipa_path or "", W - 170), 66, 196, U.TEXT, 28)
-            if s.ipa_state == "verifying": ui.spinner(66, 246); ui.text(T["verifying"], 100, 242, U.YELLOW, 28)
-            elif s.ipa_state == "ok": ui.check(66, 246); ui.text(T["ipa_ok"], 106, 242, U.GREEN, 28)
-            else: ui.cross(66, 246); ui.text(T["ipa_bad"], 106, 242, U.RED, 28)
-            self.add("browse_ipa", T["btn_browse"], 66, 310, 230, 44, small=True)
+            ui.text(fit(ui, s.ipa_path or "", W - 170), 66, 200, U.TEXT, 28)
+            if s.ipa_state == "verifying": ui.spinner(66, 250); ui.text(T["verifying"], 100, 246, U.YELLOW, 28)
+            else: ui.check(66, 250); ui.text(T["ipa_ok"], 106, 246, U.GREEN, 28)
+            self.add("browse_ipa", T["btn_browse"], 66, 326, 230, 44, small=True)
         # --- 2. FTL PC
-        ui.panel(40, 376, W - 80, 142)
-        ui.title(T["step2"], 66, 396, U.CYAN, 16)
+        ui.panel(40, 392, W - 80, 134)
+        ui.title(T["step2"], 66, 410, U.CYAN, 16)
         if s.pc_state == "found" and s.pc:
-            ui.text("%s : %s" % (T["pc_found"], s.pc.get("store", "")), 66, 430, U.GREEN if self.want_fr else U.DIM, 28)
-            ui.text(fit(ui, s.pc["path"], W - 460), 66, 460, U.DIM, 26)
-            if s.pc.get("warnings"): ui.text(T["pc_warn"], 66, 486, U.YELLOW, 24)
-            self.add("use_fr", ("[X] " if self.want_fr else "[  ] ") + ("FRANÇAIS" if self.T is i18n.FR else "FRENCH"), W - 400, 424, 330, 44, small=True)
-            self.add("browse_pc", T["btn_browse"], W - 400, 472, 330, 36, small=True)
+            ui.text("%s : %s" % (T["pc_found"], s.pc.get("store", "")), 66, 440, U.GREEN if self.want_fr else U.DIM, 28)
+            ui.text(fit(ui, s.pc["path"], W - 460), 66, 468, U.DIM, 26)
+            if s.pc.get("warnings"): ui.text(T["pc_warn"], 66, 494, U.YELLOW, 24)
+            self.add("use_fr", ("[X] " if self.want_fr else "[  ] ") + ("FRANÇAIS" if self.T is i18n.FR else "FRENCH"), W - 400, 434, 330, 40, small=True)
+            self.add("browse_pc", T["btn_browse"], W - 400, 480, 330, 36, small=True)
         elif s.pc_state == "bad":
-            ui.cross(66, 430); ui.text(T["pc_bad"], 106, 428, U.RED, 28)
-            self.add("browse_pc", T["btn_browse"], 66, 470, 230, 40, small=True)
+            ui.cross(66, 440); ui.text(T["pc_bad"], 106, 438, U.RED, 28)
+            self.add("browse_pc", T["btn_browse"], 66, 482, 230, 36, small=True)
         else:
-            ui.text(T["pc_none"] if s.pc_state != "scanning" else T["scanning"], 66, 432, U.DIM, 28)
-            self.add("browse_pc", T["btn_browse"], 66, 470, 230, 40, small=True)
+            ui.text(T["pc_none"] if s.pc_state != "scanning" else T["scanning"], 66, 442, U.DIM, 28)
+            self.add("browse_pc", T["btn_browse"], 66, 482, 230, 36, small=True)
         # --- 3. construire
-        ui.panel(40, 530, W - 80, 146)
-        ui.title(T["step3"], 66, 548, U.CYAN, 16)
-        ui.text(T["step3_info"], 66, 580, U.TEXT, 28)
+        ui.panel(40, 538, W - 80, 142)
+        ui.title(T["step3"], 66, 554, U.CYAN, 16)
+        ui.text(T["step3_info"], 66, 584, U.TEXT, 28)
         ready = s.ipa_state == "ok"
-        self.add("build", T["btn_build"], 66, 618, 470, 48, enabled=ready, primary=True)
-        self.add("quit", T["btn_quit"], W - 330, 618, 260, 48, small=True)
+        self.add("build", T["btn_build"], 66, 624, 470, 46, enabled=ready, primary=True)
+        self.add("quit", T["btn_quit"], W - 330, 624, 260, 46, small=True)
         if ready and not self.focus_set_once: self.focus = "build"; self.focus_set_once = True
         self.first_focus("open_dir" if s.ipa_state in ("none", "scanning") else ("build" if ready else "browse_ipa"))
 
