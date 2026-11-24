@@ -207,6 +207,7 @@ def st_game(c):
         open(os.path.join(g, "lancer_ftl.bat"), "w").write('@echo off\r\ncd /d "%~dp0"\r\nftl_pc.exe .\r\n')
     else:
         for n in ("run.sh", "enregistrer.sh", "rejouer.sh", "langue.sh"): shutil.copy2(os.path.join(ROOT, "steamdeck", n), os.path.join(g, n))
+        for n in ("ftl_linux", "run.sh", "enregistrer.sh", "rejouer.sh", "langue.sh"): os.chmod(os.path.join(g, n), 0o755)   # droits perdus par git archive / zip
     log("jeu pret :", g)
 
 
