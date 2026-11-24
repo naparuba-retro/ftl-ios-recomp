@@ -20,7 +20,7 @@ def make_window(fullscreen):
 def run(root, font_dir, argv):
     import ctypes
     from . import sdlttf_init
-    lang = None; shots = None; demo = None; fullscreen = False; selftest = False; smoke = 0
+    lang = None; shots = None; demo = None; fullscreen = False; selftest = False; smoke = 0; autotest = False
     it = iter(argv)
     for a in it:
         if a == "--lang": lang = next(it)
@@ -30,6 +30,7 @@ def run(root, font_dir, argv):
         elif a == "--fullscreen": fullscreen = True
         elif a == "--selftest": selftest = True
         elif a == "--smoke": smoke = int(next(it))
+        elif a == "--autotest": autotest = True
     T = i18n.pick(lang)
     real_ipa = None
     if demo:                                           # dossier jetable : rien d'ecrit dans le vrai dossier
@@ -51,8 +52,18 @@ def run(root, font_dir, argv):
     for i in range(sdl2.SDL_NumJoysticks()):
         if sdl2.SDL_IsGameController(i): sdl2.SDL_GameControllerOpen(i)
     ev = sdl2.SDL_Event(); last = time.time()
-    n = 0
+    n = 0; phase = 0; t_auto = time.time(); last_pct = -1
+    def log(m): print("[autotest %5.0fs] %s" % (time.time() - t_auto, m), flush=True)
     while not app.quit and not app.launch:
+        if autotest:                                   # test de bout en bout : detecte l'IPA, construit pour de vrai, puis clique JOUER
+            if phase == 0 and app.scanner.ipa_state == "ok": log("IPA detected: %s" % app.scanner.ipa_path); app.activate("build"); phase = 1; log("BUILD clicked")
+            elif phase == 0 and time.time() - t_auto > 60: log("FAIL: IPA not detected in 60 s"); return 2
+            elif phase == 1 and app.runner:
+                pct = int(app.runner.progress() * 100)
+                if pct != last_pct and pct % 5 == 0: last_pct = pct; log("progress %d%% (stage %s) %s" % (pct, app.runner.stage, app.runner.activity))
+            if phase == 1 and app.state == "ready": log("build finished -> READY screen"); app.activate("play"); phase = 2; log("PLAY clicked")
+            if app.state == "error": log("FAIL: build error"); [print("   " + l) for l in (app.runner.lines[-12:] if app.runner else [])]; return 3
+            if time.time() - t_auto > 3 * 3600: log("FAIL: timeout"); return 4
         n += 1
         if smoke and n > smoke: print("fenetre ouverte et %d images dessinees : ok" % smoke); break
         while sdl2.SDL_PollEvent(ctypes.byref(ev)): app.handle(ev)
@@ -117,7 +128,7 @@ def selftest_run(root, font_dir, T):
     surf, r = software_target(); ui = U.UI(r, font_dir)
     os.environ["FTL_FAKE_ROOT"] = root = tempfile.mkdtemp(prefix="ftl_selftest_")
     cmd = [sys.executable, os.path.join(os.path.dirname(__file__), "fake_build.py")]
-    app = A.App(root, ui, T, demo=cmd); sc = app.scanner; sc._busy = True; app.next_rescan = 1e18
+    app = A.App(root, ui, T, demo=cmd, scanning=False); sc = app.scanner; sc._busy = True; sc.ipa_state, sc.pc_state = "none", "none"; app.next_rescan = 1e18
     ok = True
     def check(cond, msg):
         nonlocal ok

@@ -60,9 +60,11 @@ class Scanner:
         self._busy = False
 
     def start(self):
-        threading.Thread(target=self._run, daemon=True).start()
+        """Deux recherches independantes en parallele : l'IPA, et le FTL PC (pour le francais)."""
+        threading.Thread(target=self._run_ipa, daemon=True).start()
+        threading.Thread(target=self._run_pc, daemon=True).start()
 
-    def _run(self):
+    def _run_ipa(self):
         if self._busy: return
         self._busy = True
         try:
@@ -70,25 +72,26 @@ class Scanner:
                 found = find_ipas(self.root)
                 if found:
                     self.ipa_path, self.ipa_state = found[0], "verifying"
-                    self.ipa_state = check_ipa(found[0]);
+                    self.ipa_state = check_ipa(found[0])
                     if self.ipa_state != "ok": self.ipa_path = found[0]
                 else:
                     self.ipa_state = "none"
-            if self.pc_state in ("scanning", "none"):
-                try:
-                    import detect_pc_ftl
-                    b = detect_pc_ftl.best()
-                    if b: self.pc, self.pc_state = b, "found"
-                    else: self.pc_state = "none"
-                except Exception:
-                    self.pc_state = "none"
         finally:
             self._busy = False
+
+    def _run_pc(self):
+        try:
+            import detect_pc_ftl
+            b = detect_pc_ftl.best()
+            if b: self.pc, self.pc_state = b, "found"
+            else: self.pc_state = "none"
+        except Exception:
+            self.pc_state = "none"
 
     def rescan_ipa(self):
         """Appele regulierement quand l'ecran est ouvert : repere un IPA depose dans le dossier."""
         if self.ipa_state in ("none", "bad") and not self._busy:
-            threading.Thread(target=self._run, daemon=True).start()
+            threading.Thread(target=self._run_ipa, daemon=True).start()
 
     def set_ipa(self, path):
         self.ipa_path, self.ipa_state = path, "verifying"

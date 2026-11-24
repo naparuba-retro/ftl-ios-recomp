@@ -97,7 +97,7 @@ class App:
 
     def start_build(self):
         s = self.scanner
-        if s.ipa_state != "ok": return
+        if s.ipa_state != "ok" or s.pc_state == "scanning": return
         pc = s.pc["path"] if (s.pc_state == "found" and self.want_fr and s.pc) else None
         self.runner = build.BuildRunner(self.root, s.ipa_path, pc)
         if self.demo: self.runner.cmd = self.demo
@@ -304,7 +304,7 @@ class App:
         ui.panel(40, 538, W - 80, 142)
         ui.title(T["step3"], 66, 554, U.CYAN, 16)
         ui.text(T["step3_info"], 66, 584, U.TEXT, 28)
-        ready = s.ipa_state == "ok"
+        ready = s.ipa_state == "ok" and s.pc_state != "scanning"      # on attend la fin de la recherche du FTL PC : sinon le francais serait oublie
         self.add("build", T["btn_build"], 66, 624, 470, 46, enabled=ready, primary=True)
         self.add("quit", T["btn_quit"], W - 330, 624, 260, 46, small=True)
         if ready and not self.focus_set_once: self.focus = "build"; self.focus_set_once = True
