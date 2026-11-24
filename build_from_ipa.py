@@ -26,6 +26,9 @@ except ImportError:
     sys.exit("Python 3.11 ou plus recent requis (module tomllib).")
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, ROOT)
+import bootstrap   # telechargement verifie des dependances dans ./tools
+NO_DL = False
 RECOMP = os.path.join(ROOT, "work", "recomp")
 SCRIPTS = os.path.join(ROOT, "work", "scripts")
 FRDIR = os.path.join(ROOT, "work", "fr")
@@ -74,13 +77,15 @@ def find_ghidra(arg):
     cands = [arg, os.environ.get("GHIDRA_INSTALL_DIR")] + sorted(glob.glob(os.path.join(ROOT, "tools", "ghidra_*")))
     for c in cands:
         if c and os.path.isfile(os.path.join(c, "support", "analyzeHeadless" + (".bat" if IS_WIN else ""))): return os.path.abspath(c)
-    die("Ghidra introuvable : --ghidra DIR, variable GHIDRA_INSTALL_DIR, ou ./tools/ghidra_12.2_PUBLIC")
+    if not NO_DL: return bootstrap.ghidra()
+    die("Ghidra introuvable : --ghidra DIR, variable GHIDRA_INSTALL_DIR, ou ./tools/ghidra_12.2_PUBLIC (ou retirez --no-download)")
 
 def find_jdk(arg):
     cands = [arg, os.environ.get("JAVA_HOME")] + sorted(glob.glob(os.path.join(ROOT, "tools", "jdk*", "jdk*")))
     for c in cands:
         if c and os.path.isfile(os.path.join(c, "bin", "java" + (".exe" if IS_WIN else ""))): return os.path.abspath(c)
-    die("JDK introuvable : --jdk DIR ou variable JAVA_HOME (JDK 21 ou plus)")
+    if not NO_DL: return bootstrap.jdk()
+    die("JDK introuvable : --jdk DIR ou variable JAVA_HOME (JDK 21 ou plus) (ou retirez --no-download)")
 
 def check_ghidra_version(ghidra, want):
     p = os.path.join(ghidra, "Ghidra", "application.properties")
@@ -161,7 +166,7 @@ def vcvars():
     die("Visual Studio (outils C++ x64) introuvable : installez les Build Tools de Visual Studio")
 
 
-def st_compile(c):
+def st_compile_system(c):
     gen = os.path.join(c.out, "gen"); obj = os.path.join(c.out, "obj"); binp = os.path.join(c.out, "bin")
     os.makedirs(binp, exist_ok=True)
     if IS_WIN:
@@ -186,6 +191,55 @@ def st_compile(c):
     else:
         run(["make", "-f", "Makefile.linux", "-j", str(os.cpu_count() or 2), "GENDIR=" + gen, "OBJDIR=" + obj, "OUT=" + os.path.join(binp, "ftl_linux")],
             cwd=RECOMP, logfile=os.path.join(c.out, "logs", "compile.log"))
+
+
+def find_lib(name):
+    for d in ("/usr/lib/x86_64-linux-gnu", "/usr/lib64", "/usr/lib", "/lib/x86_64-linux-gnu", "/lib64", "/usr/local/lib"):
+        if os.path.exists(os.path.join(d, name)): return d
+    die("bibliotheque %s introuvable sur ce systeme (le runtime SDL2/OpenGL doit etre installe ; present sur un Linux de bureau et le Steam Deck)" % name)
+
+
+def st_compile(c):
+    """Compile le code genere et le runtime avec Zig (clang embarque), identique sous Windows et Linux, sans rien installer."""
+    if c.args.compiler == "system": return st_compile_system(c)
+    import concurrent.futures as cf
+    zig = bootstrap.zig()
+    gen = os.path.join(c.out, "gen"); obj = os.path.join(c.out, "obj"); binp = os.path.join(c.out, "bin")
+    for d in (os.path.join(obj, "gen"), os.path.join(obj, "rt"), binp): os.makedirs(d, exist_ok=True)
+    target = "x86_64-windows-gnu" if IS_WIN else "x86_64-linux-gnu.2.28"     # glibc 2.28 minimum : fonctionne sur SteamOS et la plupart des Linux
+    env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=os.path.join(c.out, "zigcache"), ZIG_LOCAL_CACHE_DIR=os.path.join(c.out, "zigcache"))
+    flags = ["-O2", "-w", "-fno-strict-aliasing", "-fwrapv", "-ffp-contract=off", "-fno-delete-null-pointer-checks", "-fno-sanitize=undefined", "-I", gen, "-I", RECOMP]
+    if IS_WIN: flags += ["-std=gnu11"]
+    else: flags += ["-std=gnu17", "-pthread", "-D_REENTRANT", "-I", bootstrap.sdl2_include()]
+    rtsrc = "rt.c hle_libc.c hle_string.c hle_sys.c hle_sound.c hle_stream.c hle_thread.c hle_rbtree.c neon.c gl_host.c pvrtc.c main_game.c".split()
+    hle = "hle_libc.c hle_string.c hle_sys.c hle_sound.c hle_stream.c hle_thread.c hle_rbtree.c gl_host.c".split()
+    r = subprocess.run([sys.executable, "-I", "make_stubs.py", os.path.join(gen, "gen_ext.h")] + hle, cwd=RECOMP, capture_output=True, text=True)
+    if r.returncode: die("make_stubs.py : " + r.stderr)
+    stubs = os.path.join(obj, "stubs.c"); open(stubs, "w").write(r.stdout)
+    jobs = [(f, os.path.join(obj, "gen", os.path.basename(f)[:-2] + ".o")) for f in sorted(glob.glob(os.path.join(gen, "gen_*.c")))]
+    jobs += [(os.path.join(RECOMP, f), os.path.join(obj, "rt", f[:-2] + ".o")) for f in rtsrc] + [(stubs, os.path.join(obj, "rt", "stubs.o"))]
+    log("compilation de %d fichiers avec Zig (%s)" % (len(jobs), target))
+    def one(job):
+        src, o = job
+        if os.path.exists(o) and os.path.getmtime(o) > os.path.getmtime(src): return None
+        r = subprocess.run([zig, "cc", "-target", target] + flags + ["-c", src, "-o", o], env=env, capture_output=True, cwd=RECOMP)
+        return None if r.returncode == 0 else (src, r.stderr.decode("utf-8", "replace")[-3000:])
+    t0 = time.time(); fails = []
+    with cf.ThreadPoolExecutor(os.cpu_count() or 2) as ex:
+        for i, res in enumerate(ex.map(one, jobs)):
+            if res: fails.append(res)
+            if (i + 1) % 10 == 0: log("   %d / %d (%.0f s)" % (i + 1, len(jobs), time.time() - t0))
+    if fails:
+        for src, err in fails[:3]: print("--- " + src + "\n" + err)
+        die("%d fichier(s) en echec" % len(fails))
+    exe = os.path.join(binp, "ftl_pc.exe" if IS_WIN else "ftl_linux")
+    link = [zig, "cc", "-target", target, "-o", exe] + [o for _, o in jobs]
+    if IS_WIN: link += ["-lopengl32", "-luser32", "-lgdi32", "-lwinmm", "-ldbghelp", "-Wl,--stack,268435456"]
+    else:
+        link += ["-s", "-pthread", "-lm", "-ldl", "-Wl,--allow-shlib-undefined"]   # -s : sans symboles de debug (64 Mo -> ~10 Mo)
+        for lib in ("libSDL2-2.0.so.0", "libGL.so.1"): link += ["-L" + find_lib(lib), "-l:" + lib]
+    run(link, logfile=os.path.join(c.out, "logs", "link.log"), env=env)
+    log("executable :", exe)
 
 
 def st_game(c):
@@ -217,11 +271,12 @@ def st_fr(c):
     g = os.path.join(c.out, "game"); fo = os.path.join(c.out, "fr"); shutil.rmtree(fo, ignore_errors=True)
     en = os.path.join(c.out, "ipa", "ftl.dat")
     py = [sys.executable]
-    run(py + [os.path.join(FRDIR, "fr_build.py"), pc, en, fo], cwd=FRDIR)
-    run(py + [os.path.join(FRDIR, "make_fonts_fr.py"), en, fo], cwd=FRDIR)
-    run(py + [os.path.join(FRDIR, "make_buttons_fr.py"), pc, en, fo], cwd=FRDIR)
+    env = dict(os.environ, PYTHONPATH=bootstrap.pylibs() + os.pathsep + os.environ.get("PYTHONPATH", ""))
+    run(py + [os.path.join(FRDIR, "fr_build.py"), pc, en, fo], cwd=FRDIR, env=env)
+    run(py + [os.path.join(FRDIR, "make_fonts_fr.py"), en, fo], cwd=FRDIR, env=env)
+    run(py + [os.path.join(FRDIR, "make_buttons_fr.py"), pc, en, fo], cwd=FRDIR, env=env)
     shutil.copy2(en, os.path.join(g, "ftl_en.dat"))
-    run(py + [os.path.join(FRDIR, "apply_fr.py"), en, fo, os.path.join(g, "ftl.dat")], cwd=FRDIR)
+    run(py + [os.path.join(FRDIR, "apply_fr.py"), en, fo, os.path.join(g, "ftl.dat")], cwd=FRDIR, env=env)
     log("francais applique : ftl.dat (fr) et ftl_en.dat (anglais) dans", g)
 
 
@@ -231,9 +286,13 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ipa"); ap.add_argument("--out", default=os.path.join(ROOT, "build"))
     ap.add_argument("--ghidra"); ap.add_argument("--jdk"); ap.add_argument("--pc-ftl-dat")
+    ap.add_argument("--compiler", choices=["zig", "system"], default="zig", help="zig (telecharge, defaut) ou compilateur du systeme (Visual Studio / gcc+make)")
+    ap.add_argument("--no-download", action="store_true", help="ne telecharge rien : utilise --ghidra/--jdk ou ./tools")
     ap.add_argument("--only"); ap.add_argument("--skip"); ap.add_argument("--skip-hash-check", action="store_true")
     ap.add_argument("--force", action="store_true", help="refait aussi Ghidra et Lift meme si deja faits")
     c = Ctx(); c.args = ap.parse_args(); c.out = os.path.abspath(c.args.out)
+    global NO_DL
+    NO_DL = c.args.no_download
     c.cfg = tomllib.load(open(os.path.join(RECOMP, "binary.toml"), "rb"))
     stages = c.args.only.split(",") if c.args.only else list(STAGES)
     if c.args.skip: stages = [s for s in stages if s not in c.args.skip.split(",")]

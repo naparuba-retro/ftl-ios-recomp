@@ -19,7 +19,7 @@
 #define NBUF 4
 #define RATE 44100
 
-int  S_sound_mixer_init(void);
+void S_sound_mixer_init(void);
 void S_sound_mixer_get_pcm(void);
 void S_sound_mixer_cleanup(void);
 void S_sound_mixer_reset(void);

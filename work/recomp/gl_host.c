@@ -3,9 +3,11 @@
  * Les pointeurs passes par le jeu sont des adresses de la memoire invitee : traduits en MEM+adresse,
  * sauf quand un buffer (VBO/IBO) est lie, auquel cas ce sont des decalages. */
 #include "plat.h"
+#ifdef _WIN32
 #include <GL/gl.h>
-#ifndef _WIN32
+#else
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_opengl.h>   /* declarations OpenGL fournies par SDL2 : pas besoin de libgl-dev */
 #endif
 #include <stdio.h>
 #include <stdlib.h>

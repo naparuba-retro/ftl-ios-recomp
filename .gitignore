@@ -77,3 +77,4 @@ __pycache__/
 # === Tests de reconstruction (copie jetable) ===
 _test_build/
 build/
+_test_build2/
