@@ -75,7 +75,5 @@ __pycache__/
 *.gpr
 
 # === Tests de reconstruction (copie jetable) ===
-_test_build/
 build/
-_test_build2/
-_test_build3/
+_test_*/
