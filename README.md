@@ -36,6 +36,23 @@ et glisser-déposer sont gérés. Un bouton **OPTIONS** (présent sur chaque éc
 L'interface est en **anglais** par défaut (`--lang fr` ou `FTL_LANG=fr` pour le français). `python play.py --demo` montre le parcours avec un faux build ; `--shots DIR` écrit une capture de chaque écran ; `--selftest` teste les enchaînements.
 SDL2 (pysdl2) et deux polices libres (Press Start 2P, VT323 ; licence OFL) sont téléchargés dans `tools/` comme le reste.
 
+### Captures du lanceur
+(Les captures utilisent le fond généré par le lanceur ; sur ta machine, le fond est découpé de ton propre IPA.)
+
+| Premier lancement | Prêt à construire |
+|---|---|
+| ![Premier lancement](docs/screenshots/1_first_launch_empty.png) | ![Prêt à construire](docs/screenshots/2_ready_to_build.png) |
+
+| Construction en cours | Prêt à jouer |
+|---|---|
+| ![Construction](docs/screenshots/7_building.png) | ![Prêt à jouer](docs/screenshots/10_ready_to_play.png) |
+
+| Options (anglais) | Options (français) |
+|---|---|
+| ![Options](docs/screenshots/12_options.png) | ![Options FR](docs/screenshots/13_options_fr.png) |
+
+Autres écrans : [mauvais IPA](docs/screenshots/4_wrong_ipa.png), [pas de FTL PC](docs/screenshots/5_no_pc_ftl.png), [parcourir](docs/screenshots/6_browse.png), [erreur de build](docs/screenshots/9_error.png), [libérer l'espace](docs/screenshots/14_confirm_free_space.png).
+
 ## Utilisation en ligne de commande
 ```
 python build_from_ipa.py --ipa FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa
