@@ -3,6 +3,7 @@
 import os, platform, re, signal, subprocess, sys, threading, time
 
 IS_WIN = platform.system() == "Windows"
+CODE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))     # where build_from_ipa.py lives (read-only is fine)
 STAGES = ["extract", "ghidra", "lift", "patch", "compile", "game", "fr"]
 WEIGHTS = {"extract": 3, "ghidra": 30, "lift": 22, "patch": 2, "compile": 33, "game": 2, "fr": 8}   # part approximative du temps total
 RE_STAGE = re.compile(r"=== stage : (\w+)")
@@ -27,7 +28,7 @@ class BuildRunner:
 
     def command(self):
         if self.cmd: return self.cmd
-        c = [sys.executable, os.path.join(self.root, "build_from_ipa.py"), "--ipa", self.ipa, "--out", self.out]
+        c = [sys.executable, os.path.join(CODE, "build_from_ipa.py"), "--ipa", self.ipa, "--out", self.out]
         if self.pc_dat: c += ["--pc-ftl-dat", self.pc_dat]
         return c + self.extra
 
@@ -38,7 +39,7 @@ class BuildRunner:
 
     def _run(self):
         try:
-            kw = {"cwd": self.root, "stdout": subprocess.PIPE, "stderr": subprocess.STDOUT, "env": dict(os.environ, PYTHONUNBUFFERED="1", PYTHONIOENCODING="utf-8")}
+            kw = {"cwd": CODE, "stdout": subprocess.PIPE, "stderr": subprocess.STDOUT, "env": dict(os.environ, PYTHONUNBUFFERED="1", PYTHONIOENCODING="utf-8")}
             if IS_WIN: kw["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
             else: kw["start_new_session"] = True
             self.proc = subprocess.Popen(self.command(), **kw)

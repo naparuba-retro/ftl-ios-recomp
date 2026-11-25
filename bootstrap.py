@@ -11,8 +11,11 @@ Seul Python 3.11+ est suppose present (c'est lui qui execute ce script).
 """
 import hashlib, io, os, platform, shutil, sys, tarfile, time, urllib.request, zipfile, json
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-TOOLS = os.path.join(ROOT, "tools")
+ROOT = os.path.dirname(os.path.abspath(__file__))                       # code
+# Where everything the project writes goes (tools/, build/, ipa/, settings.ini): FTL_HOME, else RECOMPLAUNCHER_DATA (set by RecompLauncher),
+# else the project folder itself (the historical behaviour, unchanged when neither is set).
+DATA = os.path.abspath(os.environ.get("FTL_HOME") or os.environ.get("RECOMPLAUNCHER_DATA") or ROOT)
+TOOLS = os.path.join(DATA, "tools")
 IS_WIN = platform.system() == "Windows"
 OSK = "windows" if IS_WIN else "linux"
 

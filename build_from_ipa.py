@@ -85,14 +85,14 @@ def run(cmd, logfile=None, cwd=None, env=None, shell=False):
 
 # ---------------------------------------------------------------- outils
 def find_ghidra(arg):
-    cands = [arg, os.environ.get("GHIDRA_INSTALL_DIR")] + sorted(glob.glob(os.path.join(ROOT, "tools", "ghidra_*")))
+    cands = [arg, os.environ.get("GHIDRA_INSTALL_DIR")] + sorted(glob.glob(os.path.join(bootstrap.TOOLS, "ghidra_*")))
     for c in cands:
         if c and os.path.isfile(os.path.join(c, "support", "analyzeHeadless" + (".bat" if IS_WIN else ""))): return os.path.abspath(c)
     if not NO_DL: return bootstrap.ghidra()
     die("Ghidra not found: --ghidra DIR, GHIDRA_INSTALL_DIR variable, or ./tools/ghidra_12.2_PUBLIC (or drop --no-download)")
 
 def find_jdk(arg):
-    cands = [arg, os.environ.get("JAVA_HOME")] + sorted(glob.glob(os.path.join(ROOT, "tools", "jdk*", "jdk*")))
+    cands = [arg, os.environ.get("JAVA_HOME")] + sorted(glob.glob(os.path.join(bootstrap.TOOLS, "jdk*", "jdk*")))
     for c in cands:
         if c and os.path.isfile(os.path.join(c, "bin", "java" + (".exe" if IS_WIN else ""))): return os.path.abspath(c)
     if not NO_DL: return bootstrap.jdk()
@@ -304,7 +304,7 @@ def main():
     try: sys.stdout.reconfigure(errors="replace")
     except Exception: pass
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--ipa"); ap.add_argument("--out", default=os.path.join(ROOT, "build"))
+    ap.add_argument("--ipa"); ap.add_argument("--out", default=os.path.join(bootstrap.DATA, "build"))
     ap.add_argument("--ghidra"); ap.add_argument("--jdk"); ap.add_argument("--pc-ftl-dat", help="ftl.dat of your PC copy of FTL (official French), or \"auto\" to look for it")
     ap.add_argument("--compiler", choices=["zig", "system"], default="zig", help="zig (downloaded, default) or the system compiler (Visual Studio / gcc+make)")
     ap.add_argument("--no-download", action="store_true", help="download nothing: use --ghidra/--jdk or ./tools")
