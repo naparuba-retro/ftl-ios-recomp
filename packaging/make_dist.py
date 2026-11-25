@@ -3,9 +3,9 @@
 """Builds the downloadable packages of the launcher (used by .github/workflows/release.yml, also runnable by hand).
 
     python packaging/make_dist.py windows  --out dist --version 1.0     -> dist/FTL-Recomp-1.0-windows-x64.zip
-    python packaging/make_dist.py linux    --out dist --version 1.0     -> dist/FTL-Recomp-1.0-x86_64.AppImage   (needs --appimagetool)
+    python packaging/make_dist.py linux    --out dist --version 1.0     -> dist/FTL-Recomp-1.0-linux-x86_64.AppImage and .tar.gz   (AppImage needs --appimagetool)
 
-A package holds the launcher, the build pipeline and a private Python: NO game content (the game is built on the user's machine from their own IPA).
+A package holds the launcher, the build pipeline, recomplauncher.json (RecompLauncher support, at the top of every package) and a private Python: NO game content (the game is built on the user's machine from their own IPA).
 Everything downloaded here is pinned by SHA-256."""
 import argparse, hashlib, os, shutil, stat, struct, subprocess, sys, tarfile, urllib.request, zipfile, zlib
 
@@ -86,19 +86,15 @@ def windows(a):
 
 
 APPRUN = r'''#!/bin/sh
-# AppImage entry point. The image is read-only: the launcher's files are copied once per version into a writable folder that
-# also holds the downloaded tools, your IPA and the built game (so they survive updates).
+# Entry point of the AppImage and of the Linux tarball (same folder, packed both ways). Runs from where it is, even read-only:
+# everything the project writes (tools, your IPA, the built game, settings) goes to ONE data folder, never next to this file.
+#   RecompLauncher passes RECOMPLAUNCHER_DATA; otherwise ~/.local/share/ftl-recomp (FTL_HOME to choose another).
 HERE="$(dirname "$(readlink -f "$0")")"
-DATA="${FTL_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/ftl-recomp}"
-VER="$(cat "$HERE/usr/share/ftl-recomp/.dist-version")"
-mkdir -p "$DATA" || exit 1
-if [ "$(cat "$DATA/.dist-version" 2>/dev/null)" != "$VER" ]; then
-    cp -R --no-preserve=ownership "$HERE/usr/share/ftl-recomp/." "$DATA/" || exit 1
-    chmod -R u+rwX "$DATA"
-fi
-cd "$DATA" || exit 1
-export PATH="$HERE/usr/python/bin:$PATH"
-exec "$HERE/usr/python/bin/python3" play.py "$@"
+export PYTHONDONTWRITEBYTECODE=1
+export FTL_HOME="${FTL_HOME:-${RECOMPLAUNCHER_DATA:-${XDG_DATA_HOME:-$HOME/.local/share}/ftl-recomp}}"
+mkdir -p "$FTL_HOME" || exit 1
+cd "$FTL_HOME" || exit 1
+exec "$HERE/usr/python/bin/python3" "$HERE/usr/share/ftl-recomp/play.py" "$@"
 '''
 
 DESKTOP = """[Desktop Entry]
@@ -116,7 +112,6 @@ def linux(a):
     appdir = os.path.join(a.work, "FTL-Recomp.AppDir"); shutil.rmtree(appdir, ignore_errors=True)
     share = os.path.join(appdir, "usr", "share", "ftl-recomp"); os.makedirs(share)
     copy_project(share)
-    write(os.path.join(share, ".dist-version"), a.version)
     with tarfile.open(download(PY_LINUX, a.cache)) as t: t.extractall(os.path.join(appdir, "usr"))     # -> usr/python/
     if not os.path.isdir(os.path.join(appdir, "usr", "python", "bin")): raise SystemExit("unexpected Python archive layout")
     for junk in ("test", "idlelib", "tkinter", "turtledemo", "ensurepip"):                           # not used: keeps the image small
@@ -124,9 +119,13 @@ def linux(a):
     write(os.path.join(appdir, "AppRun"), APPRUN, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
     write(os.path.join(appdir, "ftl-recomp.desktop"), DESKTOP)
     icon_png(os.path.join(appdir, "ftl-recomp.png"))
+    shutil.copy2(os.path.join(ROOT, "recomplauncher.json"), os.path.join(appdir, "recomplauncher.json"))     # RecompLauncher reads it from the AppDir root
     for sh in ("play.sh",): os.chmod(os.path.join(share, sh), 0o755)
     os.makedirs(a.out, exist_ok=True)
-    out = os.path.join(a.out, "FTL-Recomp-%s-x86_64.AppImage" % a.version)
+    tgz = os.path.join(a.out, "FTL-Recomp-%s-linux-x86_64.tar.gz" % a.version)      # the same folder, as a tarball (runs unpacked, via AppRun)
+    with tarfile.open(tgz, "w:gz", compresslevel=9) as t: t.add(appdir, arcname="FTL-Recomp")
+    print("OK", tgz, "%.1f MB" % (os.path.getsize(tgz) / 1e6))
+    out = os.path.join(a.out, "FTL-Recomp-%s-linux-x86_64.AppImage" % a.version)
     if not a.appimagetool: print("AppDir ready:", appdir, "(pass --appimagetool to produce the .AppImage)"); return
     env = dict(os.environ, ARCH="x86_64", APPIMAGE_EXTRACT_AND_RUN="1")
     subprocess.run([a.appimagetool, appdir, out], check=True, env=env)

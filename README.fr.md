@@ -2,6 +2,8 @@
 
 *[English version](README.md)*
 
+<a href="https://recomplauncher.com"><picture><source media="(prefers-color-scheme: dark)" srcset="https://recomplauncher.com/assets/press/launcher/badge-light.svg"><img alt="Get it on RecompLauncher" src="https://recomplauncher.com/assets/press/launcher/badge-dark.svg" height="48"></picture></a>
+
 Ce dépôt reconstruit **à partir de votre propre copie** de l'IPA de *FTL: Faster Than Light* (iPad, version 1.5.10) un exécutable natif
 pour Windows et Linux (Steam Deck). Le code ARM est traduit en C (« recompilation statique ») puis compilé avec un runtime hôte
 (fichiers, threads, OpenGL ES 2 → OpenGL de bureau, son, entrées). Une traduction française est incluse (voir plus bas).
@@ -12,9 +14,15 @@ pour Windows et Linux (Steam Deck). Le code ARM est traduit en C (« recompilati
 ## Téléchargement (sans Python)
 Chaque release contient deux paquets avec leur propre Python ; **aucun contenu du jeu**, il faut toujours votre IPA :
 - **Windows** : `FTL-Recomp-<version>-windows-x64.zip` — décompresser, lancer `play.bat`.
-- **Steam Deck / Linux** : `FTL-Recomp-<version>-x86_64.AppImage` — `chmod +x`, puis le lancer (sur le Deck : l'ajouter comme jeu non-Steam). Ses données (outils, votre IPA, le jeu construit) sont dans `~/.local/share/ftl-recomp/` (`FTL_HOME` pour changer).
+- **Steam Deck / Linux** : `FTL-Recomp-<version>-linux-x86_64.AppImage` — `chmod +x`, puis le lancer (sur le Deck : l'ajouter comme jeu non-Steam). Ou le même dossier en `FTL-Recomp-<version>-linux-x86_64.tar.gz` : le décompresser et lancer `AppRun`. Leurs données (outils, votre IPA, le jeu construit) sont dans `~/.local/share/ftl-recomp/` (`FTL_HOME` pour changer) ; le dossier du programme n'est jamais écrit.
 
 Ils sont construits par l'action GitHub **Packages** (`.github/workflows/release.yml`, `packaging/make_dist.py`) : lancement manuel, ou pousser un tag `v*` pour publier une release.
+
+## RecompLauncher
+Ce projet est compatible avec [RecompLauncher](https://recomplauncher.com) : `recomplauncher.json` (livré en tête de chaque paquet de release) lui permet de vérifier votre IPA,
+de construire le jeu (étape sans fenêtre, avec progression), de le lancer et d'afficher ses options sur sa page. Le second fichier, facultatif, est votre `ftl.dat` PC pour le français.
+Tout est rangé dans le dossier `{data}` du lanceur. Sans RecompLauncher rien ne change : `python play.py`, `--prepare` et `--play` sont les seules entrées,
+et `--data DIR` (ou `FTL_HOME`) déplace outils, build et réglages où l'on veut.
 
 ## Prérequis
 **Python 3.11+ et une connexion Internet. Rien d'autre à installer ni à télécharger à la main.**

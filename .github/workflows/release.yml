@@ -7,7 +7,7 @@ name: Packages
 on:
   workflow_dispatch:
   pull_request:
-    paths: ["packaging/**", ".github/workflows/release.yml", "launcher/**", "play.py", "bootstrap.py"]
+    paths: ["packaging/**", ".github/workflows/release.yml", "launcher/**", "play.py", "bootstrap.py", "recomplauncher.json"]
   push:
     tags: ["v*"]
 
@@ -18,7 +18,20 @@ env:
   VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('dev-{0}', github.run_number) }}
 
 jobs:
+  manifest:
+    # recomplauncher.json must follow the published schema (RecompLauncher support)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: |
+          pip install -q jsonschema
+          curl -sSL -o schema.json https://recomplauncher.com/schema/recomplauncher.json
+          python -c "import json,jsonschema; s=json.load(open('schema.json')); jsonschema.validate(json.load(open('recomplauncher.json')), s); print('recomplauncher.json: valid')"
+
   windows:
+    needs: manifest
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,10 +46,15 @@ jobs:
           mkdir smoke && cd smoke && unzip -q ../out/*.zip && cd FTL-Recomp-*
           ./python/python.exe -I play.py --selftest | tail -3
           ./python/python.exe -I play.py --selftest | grep -q "TOUT OK"
+          test -f recomplauncher.json
+          # RecompLauncher's modes: no game built yet -> exit 3; a wrong IPA -> exit 2 (data kept in its own folder, not next to the program)
+          rc=0; ./python/python.exe -I play.py --play --data "$RUNNER_TEMP/d" || rc=$?; test $rc -eq 3
+          echo junk > "$RUNNER_TEMP/x.ipa"; rc=0; ./python/python.exe -I play.py --prepare --ipa "$RUNNER_TEMP/x.ipa" --data "$RUNNER_TEMP/d" || rc=$?; test $rc -eq 2
       - uses: actions/upload-artifact@v4
         with: { name: windows-zip, path: out/*.zip, if-no-files-found: error }
 
   linux:
+    needs: manifest
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -54,8 +72,14 @@ jobs:
           export APPIMAGE_EXTRACT_AND_RUN=1 FTL_HOME="$RUNNER_TEMP/ftl-home"
           ./out/*.AppImage --selftest | tail -3
           ./out/*.AppImage --selftest | grep -q "TOUT OK"
+          # the tarball must run unpacked from a READ-ONLY folder (RecompLauncher unpacks the AppImage the same way): data goes to FTL_HOME only
+          mkdir unpacked && tar -xzf out/*.tar.gz -C unpacked && test -f unpacked/FTL-Recomp/recomplauncher.json
+          chmod -R a-w unpacked
+          rc=0; unpacked/FTL-Recomp/AppRun --play --data "$RUNNER_TEMP/d2" || rc=$?; test $rc -eq 3
+          echo junk > "$RUNNER_TEMP/x.ipa"; rc=0; env -u APPIMAGE unpacked/FTL-Recomp/AppRun --prepare --ipa "$RUNNER_TEMP/x.ipa" --data "$RUNNER_TEMP/d2" || rc=$?; test $rc -eq 2
+          FTL_HOME="$RUNNER_TEMP/d3" unpacked/FTL-Recomp/AppRun --selftest | grep -q "TOUT OK"
       - uses: actions/upload-artifact@v4
-        with: { name: linux-appimage, path: out/*.AppImage, if-no-files-found: error }
+        with: { name: linux-packages, path: "out/*", if-no-files-found: error }
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -69,4 +93,4 @@ jobs:
         run: |
           cd dl && sha256sum * > SHA256SUMS.txt
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" \
-            --notes "Launcher packages. They contain no game content: you need your own FTL iPad 1.5.10 IPA (see the README). Windows: unzip, run play.bat. Steam Deck / Linux: chmod +x the AppImage and run it." *
+            --notes "Launcher packages. They contain no game content: you need your own FTL iPad 1.5.10 IPA (see the README). Windows: unzip, run play.bat. Steam Deck / Linux: chmod +x the AppImage and run it (or unpack the tarball and run AppRun). RecompLauncher support is built in (recomplauncher.json)." *
