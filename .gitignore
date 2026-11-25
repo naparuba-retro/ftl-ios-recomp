@@ -84,3 +84,6 @@ settings.ini
 
 # === Paquets ===
 dist-packages/
+
+# === APK Android (contient les donnees du jeu : jamais dans git) ===
+*.apk
