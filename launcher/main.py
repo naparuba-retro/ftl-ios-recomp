@@ -22,10 +22,8 @@ def launch_game(app, cmd=None):
     exe, g = app.launch
     genv = app.settings.game_env()
     A.ulog("launching the game with options: %s" % genv)
-    try:
-        rc = subprocess.call(cmd or [exe, "."], cwd=g, env=dict(os.environ, **genv))
-    except OSError as e:
-        A.ulog("cannot launch the game: %s" % e); rc = 1
+    from . import headless
+    rc = headless.run_game(cmd or [exe, "."], g, dict(os.environ, **genv), log=A.ulog)
     A.ulog("the game exited with code %s" % rc)
     return rc
 
@@ -189,6 +187,15 @@ def selftest_run(root, font_dir, T):
     check(rc == 7, "launch_game execute le programme avec les options en variables d'environnement (code %s)" % rc)
     app.launch = (os.path.join(root, "does-not-exist.exe"), root)
     check(launch_game(app) == 1, "un jeu introuvable ne fait pas planter le lanceur (code de retour 1)")
+    flag = os.path.join(root, "crashed_once")                   # a start that crashes at once (11) is retried once; the 2nd start works
+    if os.path.exists(flag): os.remove(flag)
+    app.launch = (sys.executable, root)
+    rc = launch_game(app, [sys.executable, "-c", "import os,sys; f=%r; (os.path.exists(f) or (open(f,'w').close(), sys.exit(11)))" % flag])
+    check(rc == 0, "un plantage immediat du jeu est relance une fois (code final %s)" % rc)
+    rc = launch_game(app, [sys.executable, "-c", "import sys; sys.exit(11)"])
+    check(rc == 11, "un jeu qui replante toujours rend son code, sans boucle (code %s)" % rc)
+    rc = launch_game(app, [sys.executable, "-c", "import sys; sys.exit(5)"])
+    check(rc == 5, "un autre code de sortie n'est pas relance (code %s)" % rc)
     app.settings.cp["game"]["vsync"] = "on"
     app.launch = None
     # annulation + echec

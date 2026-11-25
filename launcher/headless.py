@@ -73,6 +73,24 @@ def prepare(data, ipa, pc):
 
 
 # command-line options (RecompLauncher passes them from the game's page): each one overrides settings.ini for that start
+QUICK_CRASH = (11, -11, 139)       # SIGSEGV as seen by the parent, on Linux
+QUICK_SECONDS = 15.0
+
+
+def run_game(cmd, cwd, env, log=say):
+    """Start the game and wait for it. A crash in the first seconds (seen once on the Steam Deck, in the system SDL3 audio, never again
+    in many tries) is retried once: the second start is normal. Any other exit code is returned as it is."""
+    for attempt in (1, 2):
+        t0 = time.time()
+        try:
+            rc = subprocess.call(cmd, cwd=cwd, env=env)
+        except OSError as e:
+            log("Cannot start the game: %s" % e); return 1
+        if attempt == 1 and rc in QUICK_CRASH and time.time() - t0 < QUICK_SECONDS:
+            log("The game crashed %.1f s after starting (code %s): starting it once more." % (time.time() - t0, rc)); continue
+        return rc
+
+
 FLAGS = {"--fullscreen": ("game", "fullscreen", "on"), "--windowed": ("game", "fullscreen", "off"),
          "--vsync": ("game", "vsync", "on"), "--no-vsync": ("game", "vsync", "off"),
          "--fps": ("game", "show_fps", "on"), "--no-fps": ("game", "show_fps", "off"),
@@ -92,10 +110,7 @@ def play(data, flags):
     if not any(f in flags for f in ("--fullscreen", "--windowed")) and st.get("game", "fullscreen") == "auto"             and os.environ.get("RECOMPLAUNCHER_MODE") == "bigpicture":
         st.cp["game"]["fullscreen"] = "on"                       # Big Picture (couch, Steam Deck): start full screen
     env = dict(os.environ, **st.game_env())
-    try:
-        return subprocess.call([exe, "."], cwd=g, env=env)
-    except OSError as e:
-        say("Cannot start the game: %s" % e); return 1
+    return run_game([exe, "."], g, env)
 
 
 def main(argv, data):
