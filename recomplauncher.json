@@ -7,9 +7,20 @@
     {
       "id": "game",
       "label": "Your FTL IPA (iPad, version 1.5.10, decrypted): FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa",
-      "formats": [{ "type": "file", "extensions": ["ipa"] }],
+      "formats": [
+        {
+          "type": "file",
+          "extensions": [
+            "ipa"
+          ]
+        }
+      ],
       "dumps": [
-        { "name": "iPad 1.5.10 (iOS 6.0)", "size": 173605774, "crc32": "c240bfdf" }
+        {
+          "name": "iPad 1.5.10 (iOS 6.0)",
+          "size": 173605774,
+          "crc32": "c240bfdf"
+        }
       ]
     },
     {
@@ -17,79 +28,229 @@
       "label": "Optional, for the French text: the ftl.dat of your own PC copy of FTL (ftl.dat or ftl.dat.vanilla, official French, not modded).",
       "role": "update",
       "optional": true,
-      "formats": [{ "type": "file", "extensions": ["dat", "vanilla"] }]
+      "formats": [
+        {
+          "type": "file",
+          "extensions": [
+            "dat",
+            "vanilla"
+          ]
+        }
+      ]
     }
   ],
   "prepare": {
-    "program": ["play.bat", "FTL-Recomp-x86_64.AppImage", "AppRun"],
-    "args": ["--prepare", "--ipa={input:game}", "--pc-ftl-dat={input:pcftl}", "--data", "{data}"],
+    "program": [
+      "FTL-Recomp.exe",
+      "play.bat",
+      "FTL-Recomp-x86_64.AppImage",
+      "AppRun"
+    ],
+    "args": [
+      "--prepare",
+      "--ipa={input:game}",
+      "--pc-ftl-dat={input:pcftl}",
+      "--data",
+      "{data}"
+    ],
     "label": "Building the game from your IPA (first time: downloads about 1 GB of free tools, then about 15 minutes of computing)",
-    "done": ["{data}/build/game/.built.json"]
+    "done": [
+      "{data}/build/game/.built.json"
+    ]
   },
   "start": {
-    "program": ["play.bat", "FTL-Recomp-x86_64.AppImage", "AppRun"],
-    "args": ["--play", "--data", "{data}"]
+    "program": [
+      "FTL-Recomp.exe",
+      "play.bat",
+      "FTL-Recomp-x86_64.AppImage",
+      "AppRun"
+    ],
+    "args": [
+      "--play",
+      "--data",
+      "{data}"
+    ]
   },
-  "saves": ["{data}/build/game/savedata"],
+  "saves": [
+    "{data}/build/game/savedata"
+  ],
   "folders": {
-    "saves": [{ "path": "{data}/build/game/savedata" }],
-    "logs": [{ "path": "{data}/build/logs" }],
-    "replays": [{ "path": "{data}/build/game/replays" }]
+    "saves": [
+      {
+        "path": "{data}/build/game/savedata"
+      }
+    ],
+    "logs": [
+      {
+        "path": "{data}/build/logs"
+      }
+    ],
+    "replays": [
+      {
+        "path": "{data}/build/game/replays"
+      }
+    ]
   },
   "exit_codes": {
     "3": "The game isn't built yet. Use Set Up Again on the game's page, with your FTL IPA."
   },
   "groups": [
-    { "id": "Display" },
-    { "id": "Sound" },
-    { "id": "Diagnostics" }
+    {
+      "id": "Display"
+    },
+    {
+      "id": "Sound"
+    },
+    {
+      "id": "Diagnostics"
+    }
   ],
   "settings": [
     {
-      "id": "window", "label": "Game window", "group": "Display", "in": "args",
-      "help": "Fullscreen works on Linux and the Steam Deck; the Windows build opens in a window for now.",
+      "id": "window",
+      "label": "Game window",
+      "group": "Display",
+      "in": "args",
+      "help": "Fullscreen keeps the proportions (black bars on a wide screen). Game's option: fullscreen on the Steam Deck, a window elsewhere.",
       "choices": [
-        { "label": "Game's option", "args": [] },
-        { "label": "Fullscreen", "args": ["--fullscreen"] },
-        { "label": "Windowed", "args": ["--windowed"] }
+        {
+          "label": "Game's option",
+          "args": []
+        },
+        {
+          "label": "Fullscreen",
+          "args": [
+            "--fullscreen"
+          ]
+        },
+        {
+          "label": "Windowed",
+          "args": [
+            "--windowed"
+          ]
+        }
       ]
     },
     {
-      "id": "vsync", "label": "Vertical sync", "group": "Display", "in": "args",
-      "help": "On keeps the picture tear-free at 60 images per second. Turn it off to measure speed.",
+      "id": "vsync",
+      "label": "Vertical sync",
+      "group": "Display",
+      "in": "args",
+      "help": "Game's option reads settings.ini (on by default). On keeps the picture tear-free at 60 images per second; turn it off to measure speed.",
       "choices": [
-        { "label": "On", "args": [] },
-        { "label": "Off", "args": ["--no-vsync"] }
+        {
+          "label": "Game's option",
+          "args": []
+        },
+        {
+          "label": "On",
+          "args": [
+            "--vsync"
+          ]
+        },
+        {
+          "label": "Off",
+          "args": [
+            "--no-vsync"
+          ]
+        }
       ]
     },
     {
-      "id": "fps", "label": "FPS counter", "group": "Display", "in": "args",
-      "help": "Shows the number of images per second.",
+      "id": "fps",
+      "label": "FPS counter",
+      "group": "Display",
+      "in": "args",
+      "help": "Game's option reads settings.ini (off by default). Shows the number of images per second.",
       "choices": [
-        { "label": "Off", "args": [] },
-        { "label": "On", "args": ["--fps"] }
+        {
+          "label": "Game's option",
+          "args": []
+        },
+        {
+          "label": "Off",
+          "args": [
+            "--no-fps"
+          ]
+        },
+        {
+          "label": "On",
+          "args": [
+            "--fps"
+          ]
+        }
       ]
     },
     {
-      "id": "sound", "label": "Game sound", "group": "Sound", "in": "args",
-      "help": "Turn the sound off if your audio device gives trouble.",
+      "id": "sound",
+      "label": "Game sound",
+      "group": "Sound",
+      "in": "args",
+      "help": "Game's option reads settings.ini (on by default). Turn the sound off if your audio device gives trouble.",
       "choices": [
-        { "label": "On", "args": [] },
-        { "label": "Off", "args": ["--no-sound"] }
+        {
+          "label": "Game's option",
+          "args": []
+        },
+        {
+          "label": "On",
+          "args": [
+            "--sound"
+          ]
+        },
+        {
+          "label": "Off",
+          "args": [
+            "--no-sound"
+          ]
+        }
       ]
     },
     {
-      "id": "record", "label": "Record my games", "group": "Diagnostics", "in": "args", "advanced": true,
-      "help": "Records your inputs and the random seed, so a crash or a bug can be replayed exactly.",
+      "id": "record",
+      "label": "Record my games",
+      "group": "Diagnostics",
+      "in": "args",
+      "advanced": true,
+      "help": "Game's option reads settings.ini (off by default). Records your inputs and the random seed, so a crash or a bug can be replayed exactly.",
       "choices": [
-        { "label": "Off", "args": [] },
-        { "label": "On", "args": ["--record"] }
+        {
+          "label": "Game's option",
+          "args": []
+        },
+        {
+          "label": "Off",
+          "args": [
+            "--no-record"
+          ]
+        },
+        {
+          "label": "On",
+          "args": [
+            "--record"
+          ]
+        }
       ]
     }
   ],
   "actions": [
-    { "id": "saves", "label": "Saves", "help": "Open the folder with your saved games.", "open": "saves" },
-    { "id": "logs", "label": "Logs", "help": "Open the folder with the build and game logs.", "open": "logs" },
-    { "id": "replays", "label": "Recordings", "help": "Open the folder with recorded games.", "open": "replays" }
+    {
+      "id": "saves",
+      "label": "Saves",
+      "help": "Open the folder with your saved games.",
+      "open": "saves"
+    },
+    {
+      "id": "logs",
+      "label": "Logs",
+      "help": "Open the folder with the build and game logs.",
+      "open": "logs"
+    },
+    {
+      "id": "replays",
+      "label": "Recordings",
+      "help": "Open the folder with recorded games.",
+      "open": "replays"
+    }
   ]
 }

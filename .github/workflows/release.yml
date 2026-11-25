@@ -50,6 +50,15 @@ jobs:
           # RecompLauncher's modes: no game built yet -> exit 3; a wrong IPA -> exit 2 (data kept in its own folder, not next to the program)
           rc=0; ./python/python.exe -I play.py --play --data "$RUNNER_TEMP/d" || rc=$?; test $rc -eq 3
           echo junk > "$RUNNER_TEMP/x.ipa"; rc=0; ./python/python.exe -I play.py --prepare --ipa "$RUNNER_TEMP/x.ipa" --data "$RUNNER_TEMP/d" || rc=$?; test $rc -eq 2
+          # the windowless FTL-Recomp.exe (what RecompLauncher starts): same arguments, same exit codes, output passed through
+          python - <<'PY'
+          import os, subprocess
+          t = os.environ["RUNNER_TEMP"]
+          def run(*a): return subprocess.run(["./FTL-Recomp.exe", *a], capture_output=True, text=True, timeout=120)
+          r = run("--play", "--data", t + "/d4"); assert r.returncode == 3 and "not built" in r.stdout, (r.returncode, r.stdout, r.stderr)
+          r = run("--prepare", "--ipa=" + t + "/x.ipa", "--data", t + "/d4"); assert r.returncode == 2 and r.stdout.startswith("progress 0.000"), (r.returncode, r.stdout, r.stderr)
+          print("FTL-Recomp.exe ok")
+          PY
       - uses: actions/upload-artifact@v4
         with: { name: windows-zip, path: out/*.zip, if-no-files-found: error }
 

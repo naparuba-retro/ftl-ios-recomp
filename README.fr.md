@@ -49,12 +49,12 @@ Vous pouvez aussi fournir vos propres outils : `--ghidra DIR`, `--jdk DIR`, `--c
 
 ## Utilisation simple : le lanceur graphique
 ```
-python play.py        (Windows : double-clic sur play.bat ; Linux / Steam Deck : play.sh)
+python play.py        (Windows : double-clic sur play.bat (ou FTL-Recomp.exe dans le zip de release) ; Linux / Steam Deck : play.sh)
 ```
 Au **premier lancement** (aucun jeu construit), un écran guide en trois étapes : ton IPA (déposé dans le dossier `ipa/`, glissé dans la fenêtre, trouvé automatiquement
 dans Téléchargements, sur une clé USB..., ou choisi avec « Parcourir »), ton FTL PC pour le français (détecté tout seul s'il existe), puis **Construire** : une
 progression montre chaque étape. Ensuite l'écran **Jouer** lance le jeu (changement de langue et reconstruction possibles). Clavier, souris, **manette** (Steam Deck)
-et glisser-déposer sont gérés. Un bouton **OPTIONS** (présent sur chaque écran) permet de régler : fenêtre du jeu (Linux/Steam Deck), synchro verticale, compteur d'images/s, son, **enregistrement des parties** (pour reproduire un bug), langue et fenêtre du lanceur, ouverture des dossiers (sauvegardes, journaux, enregistrements) et **libération de l'espace disque** (Ghidra, Java, compilateur et fichiers de build, ~2 Go, une fois le jeu construit). Les réglages sont dans `settings.ini` et transmis au jeu au moment de le lancer.
+et glisser-déposer sont gérés. Un bouton **OPTIONS** (présent sur chaque écran) permet de régler : fenêtre du jeu (fenêtre ou plein écran), synchro verticale, compteur d'images/s, son, **enregistrement des parties** (pour reproduire un bug), langue et fenêtre du lanceur, ouverture des dossiers (sauvegardes, journaux, enregistrements) et **libération de l'espace disque** (Ghidra, Java, compilateur et fichiers de build, ~2 Go, une fois le jeu construit). Les réglages sont dans `settings.ini` (un fichier lisible et commenté, modifiable à la main) et transmis au jeu au moment de le lancer.
 L'interface est en **anglais** par défaut (`--lang fr` ou `FTL_LANG=fr` pour le français). `python play.py --demo` montre le parcours avec un faux build ; `--shots DIR` écrit une capture de chaque écran ; `--selftest` teste les enchaînements.
 SDL2 (pysdl2) et deux polices libres (Press Start 2P, VT323 ; licence OFL) sont téléchargés dans `tools/` comme le reste.
 

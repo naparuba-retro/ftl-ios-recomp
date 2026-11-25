@@ -49,15 +49,15 @@ You can also provide your own tools: `--ghidra DIR`, `--jdk DIR`, `--compiler sy
 
 ## Simple use: the graphical launcher
 ```
-python play.py        (Windows: double-click play.bat; Linux / Steam Deck: play.sh)
+python play.py        (Windows: double-click play.bat (or FTL-Recomp.exe in the release zip); Linux / Steam Deck: play.sh)
 ```
 On the **first launch** (no game built yet), a screen walks you through three steps: your IPA (dropped in the `ipa/` folder, dragged onto the window,
 found automatically in Downloads, on a USB stick..., or picked with "Browse"), your PC copy of FTL for the French text (detected automatically if present),
 then **Build the game**: a progress bar shows each stage. After that, the **Play** screen starts the game (you can change language or rebuild).
 Keyboard, mouse, **gamepad** (Steam Deck) and drag-and-drop are supported. An **OPTIONS** button (on every screen) lets you set: game window mode
-(Linux/Steam Deck), vertical sync, FPS counter, sound, **game recording** (to reproduce a bug), launcher language and window, opening the folders
+(window or fullscreen), vertical sync, FPS counter, sound, **game recording** (to reproduce a bug), launcher language and window, opening the folders
 (saves, logs, recordings) and **freeing disk space** (Ghidra, Java, compiler and build files, ~2 GB, once the game is built).
-Settings live in `settings.ini` and are passed to the game when it starts.
+Settings live in `settings.ini` (a readable, commented file you can also edit by hand) and are passed to the game when it starts.
 The interface is in **English** by default (`--lang fr` or `FTL_LANG=fr` for French). `python play.py --demo` shows the flow with a fake build;
 `--shots DIR` writes a screenshot of every screen; `--selftest` tests the screen flows.
 SDL2 (pysdl2) and two free fonts (Press Start 2P, VT323; OFL licence) are downloaded into `tools/` like everything else.

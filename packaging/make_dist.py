@@ -62,6 +62,18 @@ def icon_png(path, size=256):
     open(path, "wb").write(png)
 
 
+def build_stub(stage):
+    """FTL-Recomp.exe: a tiny windowless program that runs python/python.exe play.py with the same arguments (no console window)."""
+    sys.path.insert(0, ROOT)
+    import bootstrap
+    zig = bootstrap.zig()
+    exe = os.path.join(stage, "FTL-Recomp.exe")
+    cache = os.path.join(os.path.dirname(stage), "_zigcache")
+    env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=cache, ZIG_LOCAL_CACHE_DIR=cache)
+    subprocess.run([zig, "cc", "-target", "x86_64-windows-gnu", "-O2", "-Wl,--subsystem,windows", "-s", "-o", exe,
+                    os.path.join(ROOT, "packaging", "launcher_stub.c")], check=True, env=env)
+
+
 def windows(a):
     name = "FTL-Recomp-%s-windows-x64" % a.version
     stage = os.path.join(a.work, name); shutil.rmtree(stage, ignore_errors=True); os.makedirs(stage)
@@ -71,9 +83,10 @@ def windows(a):
     stem = pth[:-5]
     # the embedded Python ignores PYTHONPATH and the script folder: list what it needs ('..' = the project folder)
     write(os.path.join(stage, "python", pth), "%s.zip\n.\n..\n" % stem, crlf=True)
+    build_stub(stage)
     write(os.path.join(stage, "play.bat"), '@echo off\r\ncd /d "%~dp0"\r\n"%~dp0python\\python.exe" play.py %*\r\n', crlf=False)
     write(os.path.join(stage, "READ-ME-FIRST.txt"),
-          "FTL launcher (Windows)\n\n1. Double-click play.bat.\n2. Give it your own FTL iPad IPA (version 1.5.10): drop it in the 'ipa' folder, or drag it onto the window.\n"
+          "FTL launcher (Windows)\n\n1. Double-click FTL-Recomp.exe (play.bat does the same, with a console window).\n2. Give it your own FTL iPad IPA (version 1.5.10): drop it in the 'ipa' folder, or drag it onto the window.\n"
           "3. Click BUILD THE GAME (about 15 minutes, needs Internet the first time), then PLAY.\n\nNo game content is included in this package.\n"
           "Documentation: https://github.com/naparuba-retro/ftl-ios-recomp\n", crlf=True)
     os.makedirs(a.out, exist_ok=True)
