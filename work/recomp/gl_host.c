@@ -93,6 +93,14 @@ static void gl_check(const char *where)
 #define CHK() gl_check(__func__)
 
 /* ---------------- fenetre ---------------- */
+#ifdef _WIN32
+/* Le jeu dessine toujours en 1024x768. En plein ecran l'image est recopiee centree, proportions gardees (bandes noires) :
+ * g_dst_* dit ou elle tombe dans la fenetre (par defaut tout : 0,0,1024,768, comme avant). */
+static int g_win_w = 1024, g_win_h = 768, g_dst_x, g_dst_y, g_dst_w = 1024, g_dst_h = 768;
+static GLuint g_fbo_main, g_fbo_tex, g_fbo_rb;
+static int g_scale;                              /* 1 : rendu dans le FBO puis recopie a l'echelle */
+static void write_png(const char *path, const uint8_t *rgba, int w, int h);
+#endif
 /* file d'evenements souris -> tactile (lue par sys_input_update dans le fil principal) */
 typedef struct { int type, detail; float x, y; int val; } HostTouch;
 static HostTouch tq[256];
@@ -100,7 +108,11 @@ static int tq_head, tq_tail;
 static int touch_down;
 static void tq_push(int detail, LPARAM l)
 {
+#ifdef _WIN32
+    float x = ((float)(short)LOWORD(l) - (float)g_dst_x) / (float)g_dst_w, y = ((float)(short)HIWORD(l) - (float)g_dst_y) / (float)g_dst_h;
+#else
     float x = (float)(short)LOWORD(l) / 1024.0f, y = (float)(short)HIWORD(l) / 768.0f;
+#endif
     if (x < 0) x = 0; if (x > 1) x = 1;
     if (y < 0) y = 0; if (y > 1) y = 1;
     int n = (tq_head + 1) & 255;
@@ -237,8 +249,15 @@ int host_window_init(int width, int height)
     RegisterClass(&wc);
     RECT r = { 0, 0, width, height };
     AdjustWindowRect(&r, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, FALSE);
-    g_hwnd = CreateWindow("FTLPC", "FTL (iPad, recompile)", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE,
-                          CW_USEDEFAULT, CW_USEDEFAULT, r.right - r.left, r.bottom - r.top, NULL, NULL, hi, NULL);
+    int full = getenv("FTL_FULLSCREEN") != NULL && getenv("FTL_WINDOWED") == NULL;
+    if (full) {
+        SetProcessDPIAware();     /* sans cela Windows etire une fenetre "1920x1080" sur un ecran mis a l'echelle : image floue */
+        g_hwnd = CreateWindow("FTLPC", "FTL (iPad, recompile)", WS_POPUP | WS_VISIBLE, 0, 0,
+                              GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), NULL, NULL, hi, NULL);
+    } else {
+        g_hwnd = CreateWindow("FTLPC", "FTL (iPad, recompile)", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE,
+                              CW_USEDEFAULT, CW_USEDEFAULT, r.right - r.left, r.bottom - r.top, NULL, NULL, hi, NULL);
+    }
     if (!g_hwnd) return 0;
     g_dc = GetDC(g_hwnd);
     PIXELFORMATDESCRIPTOR pfd = {0};
@@ -257,11 +276,58 @@ int host_window_init(int width, int height)
     GLFUNCS(LOAD)
 #undef LOAD
     if (p_wglSwapIntervalEXT) p_wglSwapIntervalEXT(getenv("FTL_NOVSYNC") ? 0 : 1);
-    fprintf(stderr, "OpenGL hote : %s | %s\n", (const char *)glGetString(GL_RENDERER), (const char *)glGetString(GL_VERSION));
+    {   /* emplacement de l'image 1024x768 dans la zone cliente */
+        RECT cr; GetClientRect(g_hwnd, &cr);
+        int dw = cr.right > 0 ? cr.right : width, dh = cr.bottom > 0 ? cr.bottom : height;
+        double sc = (double)dw / 1024.0; if ((double)dh / 768.0 < sc) sc = (double)dh / 768.0;
+        g_win_w = dw; g_win_h = dh;
+        g_dst_w = (int)(1024.0 * sc); g_dst_h = (int)(768.0 * sc);
+        g_dst_x = (dw - g_dst_w) / 2; g_dst_y = (dh - g_dst_h) / 2;
+        g_scale = (g_dst_w != 1024 || g_dst_h != 768 || g_dst_x || g_dst_y);
+    }
+    if (g_scale) {      /* FBO de rendu 1024x768 : le jeu dessine dedans, puis il est recopie a l'echelle */
+        glGenTextures(1, &g_fbo_tex);
+        glBindTexture(GL_TEXTURE_2D, g_fbo_tex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1024, 768, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        p_glGenRenderbuffers(1, &g_fbo_rb);
+        p_glBindRenderbuffer(0x8D41, g_fbo_rb);
+        p_glRenderbufferStorage(0x8D41, 0x88F0 /* DEPTH24_STENCIL8 */, 1024, 768);
+        p_glGenFramebuffers(1, &g_fbo_main);
+        p_glBindFramebuffer(0x8D40, g_fbo_main);
+        p_glFramebufferTexture2D(0x8D40, 0x8CE0, GL_TEXTURE_2D, g_fbo_tex, 0);
+        p_glFramebufferRenderbuffer(0x8D40, 0x821A /* DEPTH_STENCIL_ATTACHMENT */, 0x8D41, g_fbo_rb);
+    }
+    fprintf(stderr, "OpenGL hote : %s | %s%s\n", (const char *)glGetString(GL_RENDERER), (const char *)glGetString(GL_VERSION), g_scale ? " | mise a l'echelle" : "");
     return 1;
 }
-#define host_fb(f) (f)
-#define host_swap() SwapBuffers(g_dc)
+/* le jeu "lie" le framebuffer 0 : on le redirige vers le FBO quand la fenetre n'est pas en 1024x768 */
+static GLuint host_fb(GLuint fb) { return (fb == 0 && g_scale) ? g_fbo_main : fb; }
+static void host_swap(void)
+{
+    if (g_scale) {
+        GLint saved = 0; glGetIntegerv(0x8CA6, &saved);
+        p_glBindFramebuffer(0x8CA8 /* READ */, g_fbo_main);
+        p_glBindFramebuffer(0x8CA9 /* DRAW */, 0);
+        GLboolean sc = glIsEnabled(GL_SCISSOR_TEST); GLfloat cc[4]; glGetFloatv(GL_COLOR_CLEAR_VALUE, cc);
+        glViewport(0, 0, g_win_w, g_win_h);
+        glDisable(GL_SCISSOR_TEST);
+        glClearColor(0, 0, 0, 1); glClear(GL_COLOR_BUFFER_BIT);
+        p_glBlitFramebuffer(0, 0, 1024, 768, g_dst_x, g_dst_y, g_dst_x + g_dst_w, g_dst_y + g_dst_h, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+        { static int ws = -2; if (ws == -2) { const char *e = getenv("FTL_WINSHOT"); ws = e ? atoi(e) : -1; }
+          if (ws >= 0 && g_frames == ws) { uint8_t *px = malloc((size_t)g_win_w * g_win_h * 4); p_glBindFramebuffer(0x8CA8, 0); glReadBuffer(GL_BACK); glReadPixels(0, 0, g_win_w, g_win_h, GL_RGBA, GL_UNSIGNED_BYTE, px);
+            for (int i = 3; i < g_win_w * g_win_h * 4; i += 4) px[i] = 255; write_png("winshot.png", px, g_win_w, g_win_h); free(px); fprintf(stderr, "[capture fenetre winshot.png %dx%d]\n", g_win_w, g_win_h); } }
+        SwapBuffers(g_dc);
+        p_glBindFramebuffer(0x8D40, (GLuint)saved);
+        glViewport(g_vp[0], g_vp[1], g_vp[2], g_vp[3]);
+        if (sc) glEnable(GL_SCISSOR_TEST);
+        glClearColor(cc[0], cc[1], cc[2], cc[3]);
+    } else {
+        SwapBuffers(g_dc);
+    }
+}
 #else
 #include "gl_sdl.inc"
 #endif

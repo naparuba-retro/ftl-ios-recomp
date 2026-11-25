@@ -448,10 +448,9 @@ class App:
         ui.panel(40, 128, W - 80, 536)
         L, R = 62, 660
         ui.title(T["sec_display"], L, 146, U.CYAN, 14)
-        self.opt_row("game", "fullscreen", "o_game_fs", L, 176, enabled=not cfg.IS_WIN)
+        self.opt_row("game", "fullscreen", "o_game_fs", L, 176)
         self.opt_row("game", "vsync", "o_vsync", L, 230)
         self.opt_row("game", "show_fps", "o_fps", L, 284)
-        if cfg.IS_WIN: ui.paragraph(T["note_win_fs"], L + 6, 336, 540, U.YELLOW, 22)
         ui.title(T["sec_sound"], L, 392, U.CYAN, 14)
         self.opt_row("game", "sound", "o_sound", L, 422)
         ui.title(T["sec_diag"], L, 488, U.CYAN, 14)

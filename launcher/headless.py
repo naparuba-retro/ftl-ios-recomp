@@ -2,13 +2,14 @@
 """Windowless modes, used by RecompLauncher (see recomplauncher.json) and handy from a terminal. Python standard library only.
 
     play.py --prepare --ipa FILE [--pc-ftl-dat FILE] [--data DIR]   build the game (no window; prints "progress 0.4 Text" lines)
-    play.py --play [--fullscreen|--windowed] [--no-vsync] [--fps] [--no-sound] [--record] [--data DIR]   start the built game
+    play.py --play [--fullscreen|--windowed] [--vsync|--no-vsync] [--fps|--no-fps] [--sound|--no-sound] [--record|--no-record] [--data DIR]
+                                                                  start the built game with settings.ini (options given here win)
 
 Exit codes: 0 ok; 1 the build failed; 2 a wrong or missing input file; 3 (--play) the game is not built yet.
 Nothing changes for the graphical launcher: these modes only exist when --prepare or --play is given."""
 import hashlib, json, os, subprocess, sys, time
 
-from . import build, scan
+from . import build, scan, settings
 
 CODE = build.CODE
 MARKER = os.path.join("build", "game", ".built.json")          # written once a build has fully finished
@@ -71,19 +72,26 @@ def prepare(data, ipa, pc):
     progress(1.0, "Done"); return 0
 
 
-FLAG_ENV = {"--fullscreen": ("FTL_FULLSCREEN", "1"), "--windowed": ("FTL_WINDOWED", "1"), "--no-vsync": ("FTL_NOVSYNC", "1"),
-            "--fps": ("FTL_FPS", "1"), "--no-sound": ("FTL_NOSOUND", "1"), "--record": ("FTL_RECORD", "auto")}
+# command-line options (RecompLauncher passes them from the game's page): each one overrides settings.ini for that start
+FLAGS = {"--fullscreen": ("game", "fullscreen", "on"), "--windowed": ("game", "fullscreen", "off"),
+         "--vsync": ("game", "vsync", "on"), "--no-vsync": ("game", "vsync", "off"),
+         "--fps": ("game", "show_fps", "on"), "--no-fps": ("game", "show_fps", "off"),
+         "--sound": ("game", "sound", "on"), "--no-sound": ("game", "sound", "off"),
+         "--record": ("game", "record", "on"), "--no-record": ("game", "record", "off")}
 
 
 def play(data, flags):
     ok, exe, g = scan.game_state(data)
     if not ok:
         say("The game is not built yet. Set it up first (RecompLauncher: Set Up Again; or run play.py)."); return 3
-    env = dict(os.environ)
+    path = os.path.join(data, "settings.ini")
+    st = settings.Settings(path)
+    if not os.path.exists(path): st.save()                       # first start: write the readable, commented file
     for f in flags:
-        if f in FLAG_ENV: env[FLAG_ENV[f][0]] = FLAG_ENV[f][1]
-    if "--fullscreen" not in flags and "--windowed" not in flags and os.environ.get("RECOMPLAUNCHER_MODE") == "bigpicture":
-        env["FTL_FULLSCREEN"] = "1"                              # Big Picture (couch, Steam Deck): start full screen
+        if f in FLAGS: st.cp[FLAGS[f][0]][FLAGS[f][1]] = FLAGS[f][2]
+    if not any(f in flags for f in ("--fullscreen", "--windowed")) and st.get("game", "fullscreen") == "auto"             and os.environ.get("RECOMPLAUNCHER_MODE") == "bigpicture":
+        st.cp["game"]["fullscreen"] = "on"                       # Big Picture (couch, Steam Deck): start full screen
+    env = dict(os.environ, **st.game_env())
     try:
         return subprocess.call([exe, "."], cwd=g, env=env)
     except OSError as e:

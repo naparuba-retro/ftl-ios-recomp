@@ -16,6 +16,17 @@ CHOICES = {
 }
 
 
+COMMENTS = {
+    ("game", "fullscreen"): "Game window. auto = fullscreen on the Steam Deck (and in RecompLauncher's Big Picture mode), a window elsewhere.",
+    ("game", "vsync"): "Vertical sync: keeps the picture tear-free at 60 images per second. Turn it off to measure speed.",
+    ("game", "show_fps"): "Show the number of images per second.",
+    ("game", "sound"): "Game sound. Turn it off if your audio device gives trouble.",
+    ("game", "record"): "Record your games (inputs and random seed) so a crash or bug can be replayed exactly. Files go to build/game/replays.",
+    ("launcher", "language"): "Language of the launcher screens.",
+    ("launcher", "fullscreen"): "Launcher window. auto = fullscreen on the Steam Deck.",
+}
+
+
 def on_deck():
     return bool(os.environ.get("SteamDeck") or os.environ.get("SteamGamepadUI"))
 
@@ -41,10 +52,20 @@ class Settings:
     def save(self):
         try:
             tmp = self.path + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f: self.cp.write(f)
+            with open(tmp, "w", encoding="utf-8") as f: f.write(self.render())
             os.replace(tmp, self.path)
         except OSError:
             pass
+
+    def render(self):
+        """The file a person can read: every option written out, with its choices explained."""
+        out = ["# FTL settings. You can edit this file: the launcher and the game read it.",
+               "# Values are chosen from the lists below. Under RecompLauncher, the options on the game's page win for that start.", ""]
+        for sec, keys in DEFAULTS.items():
+            out.append("[%s]" % sec)
+            for key in keys:
+                out += ["# " + COMMENTS[(sec, key)], "# choices: " + ", ".join(CHOICES[(sec, key)]), "%s = %s" % (key, self.get(sec, key)), ""]
+        return "\n".join(out)
 
     # ---- application
     def launcher_fullscreen(self):
