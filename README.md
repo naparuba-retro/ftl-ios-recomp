@@ -4,6 +4,11 @@
 
 <a href="https://recomplauncher.com"><picture><source media="(prefers-color-scheme: dark)" srcset="https://recomplauncher.com/assets/press/launcher/badge-light.svg"><img alt="Get it on RecompLauncher" src="https://recomplauncher.com/assets/press/launcher/badge-dark.svg" height="48"></picture></a>
 
+## How to play
+1. **Get the package** for your system from the [Releases](https://github.com/naparuba-retro/ftl-ios-recomp/releases) page (Windows `.zip`, Steam Deck / Linux `.AppImage`), or add the game from [RecompLauncher](https://recomplauncher.com).
+2. **You need your own copy** of the FTL iPad IPA, version 1.5.10 (`FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa`, decrypted). Optional: the `ftl.dat` of your PC copy of FTL, for the French text.
+3. **Run it** (`play.bat` on Windows, the AppImage on Linux), give it your IPA, press **Build the game** (about 15 minutes, once), then **Play**. Nothing from the game is ever uploaded or shipped here.
+
 This repository builds a native executable for Windows and Linux (Steam Deck) **from your own copy** of the IPA of *FTL: Faster Than Light*
 (iPad, version 1.5.10). The ARM code is translated to C ("static recompilation") and compiled together with a host runtime
 (files, threads, OpenGL ES 2 → desktop OpenGL, sound, input). A French translation is included (see below).

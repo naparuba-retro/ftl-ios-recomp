@@ -92,5 +92,5 @@ jobs:
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
           cd dl && sha256sum * > SHA256SUMS.txt
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" \
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes \
             --notes "Launcher packages. They contain no game content: you need your own FTL iPad 1.5.10 IPA (see the README). Windows: unzip, run play.bat. Steam Deck / Linux: chmod +x the AppImage and run it (or unpack the tarball and run AppRun). RecompLauncher support is built in (recomplauncher.json)." *
