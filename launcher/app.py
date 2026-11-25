@@ -92,7 +92,10 @@ class App:
         elif wid == "cancel":
             if self.runner: self.runner.cancel()
             self.runner = None; self.state = "setup"; self.focus = None
-        elif wid == "retry": self.start_build()
+        elif wid == "retry": self.start_apk() if self.runner and self.runner.only else self.start_build()
+        elif wid == "apk":
+            if self.apk_state() == "ok": scan.open_folder(os.path.dirname(self.apk_path()))
+            else: self.start_apk()
         elif wid == "log":
             if self.runner: scan.open_folder(os.path.dirname(self.runner.log_path))
         elif wid == "back": self.back()
@@ -116,6 +119,21 @@ class App:
         if s.ipa_state != "ok" or s.pc_state == "scanning": return
         pc = s.pc["path"] if (s.pc_state == "found" and self.want_fr and s.pc) else None
         self.runner = build.BuildRunner(self.root, s.ipa_path, pc)
+        if self.demo: self.runner.cmd = self.demo
+        self.runner.start(); self.state = "build"; self.focus = "cancel"
+
+    def apk_path(self): return os.path.join(self.root, "build", "android", "FTL-Recomp.apk")
+
+    def apk_state(self):
+        """'none' (not built), 'stale' (built before the game's data last changed) or 'ok'."""
+        try:
+            return "ok" if os.path.getmtime(self.apk_path()) >= os.path.getmtime(os.path.join(self.root, "build", "game", "ftl.dat")) else "stale"
+        except OSError:
+            return "none"
+
+    def start_apk(self):
+        if not scan.game_state(self.root)[0]: return
+        self.runner = build.BuildRunner(self.root, None, None, only=["android"])
         if self.demo: self.runner.cmd = self.demo
         self.runner.start(); self.state = "build"; self.focus = "cancel"
 
@@ -384,7 +402,7 @@ class App:
         ui.header(T["build_title"], T["build_sub"])
         ui.panel(40, 128, 760, 420)
         y = 152
-        for st in STAGE_ORDER:
+        for st in (r.stage_list if r.only else STAGE_ORDER):
             if st == "fr" and not r.pc_dat: continue
             done = st in r.done; cur = (r.stage == st and not done)
             col = U.GREEN if done else (U.YELLOW if cur else U.DIM)
@@ -423,14 +441,17 @@ class App:
 
     def draw_ready(self, ui, T):
         ui.header(T["ready_title"], T["ready_sub"])
-        ui.panel(300, 170, W - 600, 380)
+        ui.panel(300, 170, W - 600, 440)
         self.add("play", T["btn_play"], 380, 214, W - 760, 96, primary=True)
         cur, can = scan.langs_available(self.game_dir)
         y = 340
         if can: self.add("lang", T["lang_fr"] if cur == "fr" else T["lang_en"], 380, y, W - 760, 56, small=True); y += 84
         self.add("rebuild", T["btn_rebuild"], 380, y, (W - 760) // 2 - 10, 52, small=True)
         self.add("quit", T["btn_quit"], 380 + (W - 760) // 2 + 10, y, (W - 760) // 2 - 10, 52, small=True)
-        ui.text(fit(ui, self.game_dir, W - 700, 24), W // 2, y + 84, U.DIM, 24, anchor="c")
+        ast = self.apk_state()
+        self.add("apk", T["btn_apk_open"] if ast == "ok" else T["btn_apk"], 380, y + 68, W - 760, 48, small=True)
+        ui.text(fit(ui, T["apk_done"] % self.apk_path() if ast == "ok" else T["apk_hint"], W - 700, 22), W // 2, y + 124, U.GREEN if ast == "ok" else U.DIM, 22, anchor="c")
+        ui.text(fit(ui, self.game_dir, W - 700, 24), W // 2, y + 156, U.DIM, 24, anchor="c")
         self.first_focus("play")
 
     def opt_label(self, sec, key):

@@ -11,7 +11,13 @@
 #include <dbghelp.h>
 #else
 #include <signal.h>
+#ifdef __ANDROID__
+#include <SDL2/SDL.h>      /* renomme main en SDL_main : l'activite SDL l'appelle */
+int android_prepare_data(void);
+void android_log_init(void);
+#else
 #include <execinfo.h>
+#endif
 #endif
 #ifdef RTC_BUILD
 #include <rtcapi.h>
@@ -73,7 +79,9 @@ static void crash_signal(int sig, siginfo_t *si, void *uc)
     fprintf(stderr, "\n    r0=%08x r1=%08x r2=%08x r3=%08x r4=%08x r5=%08x\n    sp=%08x lr=%08x\n",
             R32(REG_r0), R32(REG_r1), R32(REG_r2), R32(REG_r3), R32(REG_r4), R32(REG_r5), R32(REG_sp), R32(REG_lr));
     rt_where("lr", R32(REG_lr));
+#ifndef __ANDROID__
     { void *bt[24]; int n = backtrace(bt, 24); backtrace_symbols_fd(bt, n, 2); }
+#endif
     fflush(stderr);
     _exit(11);
 }
@@ -102,11 +110,19 @@ static int game_main(int argc, char **argv)
     { ULONG g = 65536; SetThreadStackGuarantee(&g); }
 #endif
     if (argc > 1) g_datadir = argv[1];
+#ifdef __ANDROID__
+    android_log_init();
+    /* Android : la fenetre d'abord (barre de progression pendant la copie de ftl.dat hors de l'APK), puis le dossier de travail du jeu */
+    if (!host_window_init(1024, 768)) { fprintf(stderr, "Impossible de creer la fenetre OpenGL ES\n"); return 1; }
+    if (!android_prepare_data()) return 1;
+#endif
     rt_init_memory("genj");
     R32(REG_sp) = rt_new_stack(8u << 20);
     R32(REG_lr) = 0;
 
+#ifndef __ANDROID__
     if (!host_window_init(1024, 768)) { fprintf(stderr, "Impossible de creer la fenetre OpenGL\n"); return 1; }
+#endif
     hle_stream_init_data();
 
     /* initialiseurs statiques (dyld les executerait avant main) */

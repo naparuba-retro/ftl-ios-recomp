@@ -79,6 +79,21 @@ SDL2 (pysdl2) and two free fonts (Press Start 2P, VT323; OFL licence) are downlo
 
 Other screens: [wrong IPA](docs/screenshots/4_wrong_ipa.png), [no PC FTL](docs/screenshots/5_no_pc_ftl.png), [browse](docs/screenshots/6_browse.png), [build error](docs/screenshots/9_error.png), [free up space](docs/screenshots/14_confirm_free_space.png).
 
+## Android (phone or tablet)
+You can build an **APK** from the game you built, and install it on your own Android device (Android 7+, arm64; OpenGL ES 3.0). The APK holds the game's data
+(`ftl.dat`) and code derived from **your** IPA: install it on your own devices, never publish it.
+```
+python build_from_ipa.py --ipa FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa --android          # everything, then the APK
+python build_from_ipa.py --out build --only android                                         # just the APK, once the game is built
+python android_build.py --out build --install                                               # build, then install over USB (adb)
+```
+Or press **ANDROID APK** on the launcher's "All set" screen. The APK is `build/android/FTL-Recomp.apk` (about 190 MB). The first start copies the data out
+of the APK (a progress bar), then the game starts. It downloads the Android NDK r27c, the build-tools and SDL2 sources into `tools/` (about 1 GB, SHA-pinned),
+nothing else to install. `--android-abi arm64-v8a,x86_64` adds the emulator architecture.
+Touch = the mouse pointer; **Back** = Escape, **Back twice quickly** = quit; the picture keeps its 4:3 shape (black bars). Messages of the game: `adb logcat -s FTL`.
+Tested on the Android emulator (API 34, x86_64): menus, hangar, a game in progress, the on-screen keyboard, pause/resume, quit and restart. **Not tested on a real phone yet**
+(performance, sound, gamepad): reports welcome.
+
 ## Command-line use
 ```
 python build_from_ipa.py --ipa FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa
@@ -98,7 +113,7 @@ The texts (≈ 94 % of the strings), the fonts (accents) and 29 button/banner im
 Still in English: text drawn inside the big atlases (hangar, HUD) and a few strings hard-coded in the executable.
 
 ## Repository contents
-- `build_from_ipa.py` — the whole pipeline.
+- `build_from_ipa.py` — the whole pipeline. `android_build.py` + `android/` — the optional Android APK stage.
 - `work/scripts/` — Ghidra scripts: `Lift.java` (the ARM → C translator), `FixSwitch.java` (switch tables), analysis tools.
 - `work/recomp/` — host runtime (`rt.c`, `hle_*.c`, `gl_host.c` + `gl_sdl.inc`, `plat.h` for Windows/Linux portability), `binary.toml`
   (binary-specific addresses), `patches_apres_lift.py`, build scripts.

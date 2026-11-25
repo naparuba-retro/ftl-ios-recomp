@@ -5,6 +5,12 @@
 #include "plat.h"
 #ifdef _WIN32
 #include <GL/gl.h>
+#elif defined(__ANDROID__)
+#include <SDL2/SDL.h>
+#include <GLES3/gl3.h>         /* Android : OpenGL ES 3.0 natif (le jeu est en ES 2 : plus de traduction vers OpenGL de bureau) */
+#ifndef APIENTRY
+#define APIENTRY
+#endif
 #else
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>   /* declarations OpenGL fournies par SDL2 : pas besoin de libgl-dev */
@@ -161,11 +167,20 @@ static void text_command(int detail)       /* 20 DONE, 21 CANCELLED, 22 CLEAR, 2
 /* debut de saisie : texte par defaut en UTF-8 (CLEAR puis octets) */
 void host_text_begin(const char *def)
 {
+#ifdef __ANDROID__
+    SDL_StartTextInput();
+#endif
     g_text_mode = 1; sh_len = sh_pos = 0; eq_push(5, 22, 0);
     for (const unsigned char *c = (const unsigned char *)(def ? def : ""); *c && sh_len < (int)sizeof sh - 1; c++) { sh[sh_len++] = *c; eq_push(5, 19, *c); }
     sh_pos = sh_len;
 }
-void host_text_mode(int on) { g_text_mode = on; }
+void host_text_mode(int on)
+{
+    g_text_mode = on;
+#ifdef __ANDROID__
+    if (!on) SDL_StopTextInput();
+#endif
+}
 
 #ifdef _WIN32
 /* touches virtuelles -> codes de touches SIL (keycodes.h) */
@@ -529,7 +544,11 @@ EXT(_glCullFace) { GT("glCullFace %x\n", A32(0)); glCullFace(A32(0)); CHK(); }
 EXT(_glDeleteTextures) { glDeleteTextures((GLsizei)A32(0), (const GLuint *)GP(A32(1))); CHK(); }
 EXT(_glDepthFunc) { GT("glDepthFunc %x\n", A32(0)); glDepthFunc(A32(0)); CHK(); }
 EXT(_glDepthMask) { GT("glDepthMask %d\n", (int)(A32(0)&0xff)); glDepthMask(A32(0) & 0xff); CHK(); }
+#ifdef __ANDROID__
+EXT(_glDepthRangef) { glDepthRangef(AF(0), AF(1)); CHK(); }
+#else
 EXT(_glDepthRangef) { glDepthRange(AF(0), AF(1)); CHK(); }
+#endif
 EXT(_glDisable) { GT("glDisable %x\n", A32(0)); glDisable(A32(0)); CHK(); }
 EXT(_glEnable) { GT("glEnable %x\n", A32(0)); glEnable(A32(0)); CHK(); }
 EXT(_glFinish) { glFinish(); }
@@ -562,9 +581,27 @@ static GLint fix_internal(GLenum fmt)
 {
     return fmt == 0x80E1 ? 0x8058 /* GL_BGRA -> GL_RGBA8 */ : (GLint)fmt;
 }
+#ifdef __ANDROID__
+/* OpenGL ES 3.0 n'a pas GL_BGRA (format des textures iOS) : octets R et B echanges a l'envoi */
+static uint8_t *bgra_to_rgba(const void *src, size_t w, size_t h)
+{
+    uint8_t *o = malloc(w * h * 4); const uint8_t *s = (const uint8_t *)src;
+    if (!o) return NULL;
+    for (size_t i = 0; i < w * h; i++) { o[4 * i] = s[4 * i + 2]; o[4 * i + 1] = s[4 * i + 1]; o[4 * i + 2] = s[4 * i]; o[4 * i + 3] = s[4 * i + 3]; }
+    return o;
+}
+#endif
 EXT(_glTexImage2D)
 {
     const void *px = A32(8) ? GP(A32(8)) : NULL;
+#ifdef __ANDROID__
+    if (A32(6) == 0x80E1 && px) {
+        uint8_t *t = bgra_to_rgba(px, A32(3), A32(4));
+        glTexImage2D(A32(0), (GLint)A32(1), 0x8058, (GLsizei)A32(3), (GLsizei)A32(4), (GLint)A32(5), GL_RGBA, A32(7), t ? t : px);
+        free(t); CHK(); return;
+    }
+    if (A32(6) == 0x80E1) { glTexImage2D(A32(0), (GLint)A32(1), 0x8058, (GLsizei)A32(3), (GLsizei)A32(4), (GLint)A32(5), GL_RGBA, A32(7), NULL); CHK(); return; }
+#endif
     GT("glTexImage2D tgt=%x lvl=%d ifmt=%x %dx%d fmt=%x type=%x data=%d\n", A32(0), (int)A32(1), A32(2), (int)A32(3), (int)A32(4), A32(6), A32(7), px != NULL);
     if (g_gl_trace && px && A32(2) == 0x1906) { const uint8_t *q = (const uint8_t *)px; size_t nz = 0, n = (size_t)A32(3) * A32(4); for (size_t i = 0; i < n; i++) nz += q[i] != 0; fprintf(stderr, "  [alpha %ux%u octets non nuls : %zu]\n", A32(3), A32(4), nz); }
     glTexImage2D(A32(0), (GLint)A32(1), fix_internal(A32(2)), (GLsizei)A32(3), (GLsizei)A32(4), (GLint)A32(5), A32(6), A32(7), px);
@@ -572,6 +609,13 @@ EXT(_glTexImage2D)
 }
 EXT(_glTexSubImage2D)
 {
+#ifdef __ANDROID__
+    if (A32(6) == 0x80E1) {
+        uint8_t *t = bgra_to_rgba(GP(A32(8)), A32(4), A32(5));
+        glTexSubImage2D(A32(0), (GLint)A32(1), (GLint)A32(2), (GLint)A32(3), (GLsizei)A32(4), (GLsizei)A32(5), GL_RGBA, A32(7), t ? t : GP(A32(8)));
+        free(t); CHK(); return;
+    }
+#endif
     glTexSubImage2D(A32(0), (GLint)A32(1), (GLint)A32(2), (GLint)A32(3), (GLsizei)A32(4), (GLsizei)A32(5), A32(6), A32(7), GP(A32(8)));
     CHK();
 }
@@ -664,6 +708,19 @@ EXT(_glShaderSource)
     size_t cap = 256;
     for (uint32_t i = 0; i < count; i++) cap += strlen(GSTR(M32(arr + 4 * i))) + 1;
     char *src = malloc(cap + 1), *o = src;
+#ifdef __ANDROID__
+    /* Android : le GLSL ES 1.00 d'iOS passe tel quel (precision comprise) */
+    for (uint32_t i = 0; i < count; i++) {
+        const char *s = GSTR(M32(arr + 4 * i));
+        size_t n = lens && (int32_t)M32(lens + 4 * i) >= 0 ? (size_t)M32(lens + 4 * i) : strlen(s);
+        memcpy(o, s, n); o += n;
+    }
+    *o = 0;
+    { const char *list[1] = { src }; p_glShaderSource(sh, 1, list, NULL); }
+    free(src);
+    CHK();
+    return;
+#endif
     o += sprintf(o, "#version 120\n#define lowp\n#define mediump\n#define highp\n");
     for (uint32_t i = 0; i < count; i++) {
         const char *s = GSTR(M32(arr + 4 * i));

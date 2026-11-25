@@ -12,6 +12,8 @@ Stages (--only a,b / --skip a,b):
   compile  : compiles the generated code and the runtime (Zig by default; --compiler system for Visual Studio / gcc)
   game     : assembles <out>/game (executable, ftl.dat, genj/, override/24.font)
   fr       : (with --pc-ftl-dat) French patch: texts, accented fonts, buttons
+  android  : (optional, --android or --only android) builds an Android APK from the result: <out>/android/FTL-Recomp.apk
+             (downloads the Android NDK etc., about 1 GB; see android_build.py). Install it on your own phone or tablet.
 
 Nothing from the game is in the repository: everything generated stays in <out> (ignored by git).
 Only Python 3.11+ is required: Ghidra, the JDK, the compiler, SDL2 headers... are downloaded into ./tools by bootstrap.py."""
@@ -31,6 +33,7 @@ SCRIPTS = os.path.join(ROOT, "work", "scripts")
 FRDIR = os.path.join(ROOT, "work", "fr")
 IS_WIN = platform.system() == "Windows"
 STAGES = ["extract", "ghidra", "lift", "patch", "compile", "game", "fr"]
+OPTIONAL_STAGES = ["android"]          # only run when asked (--android or --only)
 
 
 def log(*a): print("[build]", *a, flush=True)
@@ -230,9 +233,10 @@ def st_compile(c):
     jobs = [(f, os.path.join(obj, "gen", os.path.basename(f)[:-2] + ".o")) for f in sorted(glob.glob(os.path.join(gen, "gen_*.c")))]
     jobs += [(os.path.join(RECOMP, f), os.path.join(obj, "rt", f[:-2] + ".o")) for f in rtsrc] + [(stubs, os.path.join(obj, "rt", "stubs.o"))]
     log("compiling %d files with Zig (%s)" % (len(jobs), target))
+    newest_header = max(os.path.getmtime(h) for h in glob.glob(os.path.join(RECOMP, "*.h")) + glob.glob(os.path.join(RECOMP, "*.inc")) + glob.glob(os.path.join(gen, "*.h")))   # a changed header rebuilds everything
     def one(job):
         src, o = job
-        if os.path.exists(o) and os.path.getmtime(o) > os.path.getmtime(src): return None
+        if os.path.exists(o) and os.path.getmtime(o) > max(os.path.getmtime(src), newest_header): return None
         r = subprocess.run([zig, "cc", "-target", target] + flags + ["-c", src, "-o", o], env=env, capture_output=True, cwd=RECOMP)
         return None if r.returncode == 0 else (src, r.stderr.decode("utf-8", "replace")[-3000:])
     t0 = time.time(); fails = []
@@ -276,6 +280,11 @@ def st_game(c):
     log("game ready:", g)
 
 
+def st_android(c):
+    import android_build
+    android_build.build_apk(c.out, tuple(c.args.android_abi.split(",")), c.jobs)
+
+
 def st_fr(c):
     pc = c.args.pc_ftl_dat
     if not pc: return log("fr: skipped (no --pc-ftl-dat; use --pc-ftl-dat auto to look for your PC copy of FTL)")
@@ -311,6 +320,8 @@ def main():
     ap.add_argument("--jobs", type=int, help="number of parallel tasks (default: all cores; half of them on Linux)")
     ap.add_argument("--no-nice", action="store_true", help="Linux: do not lower the build priority")
     ap.add_argument("--only"); ap.add_argument("--skip"); ap.add_argument("--skip-hash-check", action="store_true")
+    ap.add_argument("--android", action="store_true", help="also build an Android APK (stage android: downloads the NDK, about 1 GB)")
+    ap.add_argument("--android-abi", default="arm64-v8a", help="APK architectures, comma list: arm64-v8a (phones, tablets), x86_64 (emulator)")
     ap.add_argument("--force", action="store_true", help="redo Ghidra and Lift even if already done")
     c = Ctx(); c.args = ap.parse_args(); c.out = os.path.abspath(c.args.out)
     for k in ("ipa", "pc_ftl_dat", "ghidra", "jdk"):      # chemins absolus : les sous-processus changent de dossier
@@ -320,10 +331,10 @@ def main():
     NO_DL = c.args.no_download
     be_gentle(c)
     c.cfg = tomllib.load(open(os.path.join(RECOMP, "binary.toml"), "rb"))
-    stages = c.args.only.split(",") if c.args.only else list(STAGES)
+    stages = c.args.only.split(",") if c.args.only else list(STAGES) + (OPTIONAL_STAGES if c.args.android else [])
     if c.args.skip: stages = [s for s in stages if s not in c.args.skip.split(",")]
     for s in stages:
-        if s not in STAGES: die("unknown stage: " + s)
+        if s not in STAGES + OPTIONAL_STAGES: die("unknown stage: " + s)
     if c.args.force:
         for s in ("ghidra", "lift"):
             if os.path.exists(stamp(c, s)): os.remove(stamp(c, s))

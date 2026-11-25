@@ -61,9 +61,17 @@ def _sha256(path):
     return h.hexdigest()
 
 
+def _digest(path, expected):
+    """SHA-256 (64 hex digits) or, for Google's own Android packages, the SHA-1 their official catalog publishes (40 hex digits)."""
+    h = hashlib.sha1() if len(expected) == 40 else hashlib.sha256()
+    with open(path, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""): h.update(b)
+    return h.hexdigest()
+
+
 def _get(url, dest, sha256):
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-    if os.path.exists(dest) and _sha256(dest) == sha256: return dest
+    if os.path.exists(dest) and _digest(dest, sha256) == sha256: return dest
     for attempt in range(3):
         try:
             log("downloading", url)
@@ -74,8 +82,8 @@ def _get(url, dest, sha256):
                 for chunk in iter(lambda: r.read(1 << 20), b""):
                     f.write(chunk); n += len(chunk)
                     if tot and (n // (1 << 20)) % 50 == 0: log("   %d / %d MB" % (n >> 20, tot >> 20))
-            got = _sha256(dest + ".part")
-            if got != sha256: raise RuntimeError("SHA-256 inattendu : %s (attendu %s)" % (got, sha256))
+            got = _digest(dest + ".part", sha256)
+            if got != sha256: raise RuntimeError("unexpected digest: %s (expected %s)" % (got, sha256))
             os.replace(dest + ".part", dest)
             log("   ok (%d MB in %.0f s)" % (n >> 20, time.time() - t0))
             return dest
@@ -112,6 +120,43 @@ def _ensure(name, spec, marker):
     _extract(arch, TOOLS)
     if not os.path.exists(os.path.join(d, *marker)): sys.exit("ERROR: %s: unexpected content after extraction in %s" % (name, d))
     return d
+
+
+# ---- Android (only for the optional "android" stage that builds an APK). Official Google packages, pinned by the SHA-1 of Google's catalog
+# (https://dl.google.com/android/repository/repository2-3.xml), over HTTPS.
+_G = "https://dl.google.com/android/repository/"
+ANDROID = {
+    "ndk": {"dir": "android-ndk-r27c",
+            "windows": (_G + "android-ndk-r27c-windows.zip", "ac5f7762764b1f15341094e148ad4f847d050c38"),
+            "linux": (_G + "android-ndk-r27c-linux.zip", "090e8083a715fdb1a3e402d0763c388abb03fb4e")},
+    "build_tools": {"dir": "android-15",       # the zip's own top folder (build-tools 35.0.1)
+                    "windows": (_G + "build-tools_r35.0.1_windows.zip", "1cbfa5564b62504a1111352edda35914cf723a20"),
+                    "linux": (_G + "build-tools_r35.0.1_linux.zip", "e009a9b188cfeb1d2b4c318ab5cb4f1ddc368861")},
+    "platform_tools": {"dir": "platform-tools",       # adb, to install the APK on a phone plugged in by USB
+                       "windows": (_G + "platform-tools_r37.0.3-win.zip", "7fea85bc18d0480bc81d3603952d666f49496e5a"),
+                       "linux": (_G + "platform-tools_r37.0.3-linux.zip", "e1579b288a7ae4e9bc28dedec6a154d78b3c04ed")},
+    "platform": {"dir": "android-35", "any": (_G + "platform-35_r02.zip", "0bb560a90a7a2cbd0dd8348224d518b638fe7949")},
+}
+
+
+def android():
+    """NDK r27c, build-tools 35.0.1, android.jar (API 35) and the SDL2 sources, in ./tools/android. Returns a dict of paths."""
+    base = os.path.join(TOOLS, "android"); os.makedirs(base, exist_ok=True)
+    out = {}
+    for key, marker in (("ndk", ["toolchains", "llvm"]), ("build_tools", ["lib", "d8.jar"]), ("platform", ["android.jar"]), ("platform_tools", ["adb" + (".exe" if IS_WIN else "")])):
+        spec = ANDROID[key]; url, sha = spec.get(OSK) or spec["any"]
+        d = os.path.join(base, spec["dir"])
+        if not os.path.exists(os.path.join(d, *marker)):
+            arch = _get(url, os.path.join(TOOLS, "_dl", os.path.basename(url)), sha)
+            log("extracting Android " + key); shutil.rmtree(d, ignore_errors=True)
+            if key == "platform":                       # only android.jar (the zip holds thousands of unused files)
+                with zipfile.ZipFile(arch) as z: z.extract("android-35/android.jar", base)
+            else:
+                _extract(arch, base)
+            if not os.path.exists(os.path.join(d, *marker)): sys.exit("ERROR: Android %s: unexpected content in %s" % (key, d))
+        out[key] = d
+    out["sdl"] = _ensure("SDL2 sources", DEPS["sdl2"], ["Android.mk"])
+    return out
 
 
 def ghidra():

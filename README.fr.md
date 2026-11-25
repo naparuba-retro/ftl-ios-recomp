@@ -75,6 +75,21 @@ SDL2 (pysdl2) et deux polices libres (Press Start 2P, VT323 ; licence OFL) sont 
 
 Autres écrans : [mauvais IPA](docs/screenshots/4_wrong_ipa.png), [pas de FTL PC](docs/screenshots/5_no_pc_ftl.png), [parcourir](docs/screenshots/6_browse.png), [erreur de build](docs/screenshots/9_error.png), [libérer l'espace](docs/screenshots/14_confirm_free_space.png).
 
+## Android (téléphone ou tablette)
+On peut construire une **APK** à partir du jeu construit et l'installer sur son propre appareil Android (Android 7+, arm64 ; OpenGL ES 3.0). L'APK contient les données du jeu
+(`ftl.dat`) et du code dérivé de **votre** IPA : à installer sur vos appareils, jamais à publier.
+```
+python build_from_ipa.py --ipa FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa --android          # tout, puis l'APK
+python build_from_ipa.py --out build --only android                                         # seulement l'APK, une fois le jeu construit
+python android_build.py --out build --install                                               # construit, puis installe par USB (adb)
+```
+Ou le bouton **ANDROID APK** de l'écran « All set » du lanceur. L'APK est `build/android/FTL-Recomp.apk` (environ 190 Mo). Au premier démarrage, les données sont copiées hors de l'APK
+(barre de progression), puis le jeu démarre. Sont téléchargés dans `tools/` le NDK Android r27c, les build-tools et les sources SDL2 (environ 1 Go, épinglés par somme de contrôle) ; rien d'autre à installer.
+`--android-abi arm64-v8a,x86_64` ajoute l'architecture de l'émulateur.
+Le toucher remplace la souris ; **Retour** = Échap, **Retour deux fois vite** = quitter ; l'image garde son format 4:3 (bandes noires). Messages du jeu : `adb logcat -s FTL`.
+Testé sur l'émulateur Android (API 34, x86_64) : menus, hangar, partie en cours, clavier à l'écran, pause/reprise, quitter et relancer. **Pas encore testé sur un vrai téléphone**
+(performances, son, manette) : retours bienvenus.
+
 ## Utilisation en ligne de commande
 ```
 python build_from_ipa.py --ipa FTL__Faster_Than_Light_1.5.10_ios_6.0.ipa
@@ -93,7 +108,7 @@ Les textes (≈ 94 % des chaînes), les polices (accents) et 29 images de bouton
 Restent en anglais : le texte dessiné dans les grands atlas (hangar, HUD) et quelques chaînes codées dans l'exécutable.
 
 ## Contenu du dépôt
-- `build_from_ipa.py` — chaîne complète.
+- `build_from_ipa.py` — chaîne complète. `android_build.py` + `android/` — l'étape facultative qui construit l'APK Android.
 - `work/scripts/` — scripts Ghidra : `Lift.java` (le traducteur ARM → C), `FixSwitch.java` (tables de commutation), outils d'analyse.
 - `work/recomp/` — runtime hôte (`rt.c`, `hle_*.c`, `gl_host.c`+`gl_sdl.inc`, `plat.h` pour la portabilité Windows/Linux), `binary.toml`
   (adresses propres au binaire), `patches_apres_lift.py`, scripts de compilation.

@@ -13,15 +13,31 @@ static SDL_GameController *g_pad;
 static float g_cur_x = 512.0f, g_cur_y = 384.0f; /* curseur virtuel de la manette (espace 1024x768) */
 static int g_pad_down;
 
+#ifdef __ANDROID__
+#include <EGL/egl.h>
+/* Taille reelle de la surface EGL : sous Android elle peut changer (barres systeme, clavier) sans que SDL (fenetre plein ecran) le dise */
+static int android_surface_size(int *w, int *h)
+{
+    EGLDisplay d = eglGetCurrentDisplay(); EGLSurface s = eglGetCurrentSurface(EGL_DRAW); EGLint ew = 0, eh = 0;
+    if (d == EGL_NO_DISPLAY || s == EGL_NO_SURFACE || !eglQuerySurface(d, s, EGL_WIDTH, &ew) || !eglQuerySurface(d, s, EGL_HEIGHT, &eh) || ew <= 0 || eh <= 0) return 0;
+    *w = ew; *h = eh; return 1;
+}
+#endif
 static void sdl_layout(void)
 {
     int dw = 0, dh = 0;
     SDL_GL_GetDrawableSize(g_win, &dw, &dh);
+#ifdef __ANDROID__
+    android_surface_size(&dw, &dh);
+#endif
     SDL_GetWindowSize(g_win, &g_win_w, &g_win_h);
     if (dw <= 0 || dh <= 0) { dw = g_win_w; dh = g_win_h; }
     double s = (double)dw / 1024.0; if ((double)dh / 768.0 < s) s = (double)dh / 768.0;
     g_dst_w = (int)(1024.0 * s); g_dst_h = (int)(768.0 * s);
     g_dst_x = (dw - g_dst_w) / 2; g_dst_y = (dh - g_dst_h) / 2;
+#ifdef __ANDROID__
+    fprintf(stderr, "[disposition] fenetre %dx%d, zone de dessin %dx%d, image %dx%d en (%d,%d)\n", g_win_w, g_win_h, dw, dh, g_dst_w, g_dst_h, g_dst_x, g_dst_y);
+#endif
 }
 /* position fenetre (pixels) -> espace du jeu (0..1023, 0..767) */
 static void sdl_to_game(int wx, int wy, int *gx, int *gy)
@@ -75,15 +91,33 @@ static void pad_poll(void)
 void host_pump(void)
 {
     SDL_Event e; int gx, gy;
+#ifdef __ANDROID__
+    {   /* la taille de la surface peut changer sans evenement (clavier a l'ecran, barres systeme) : on la relit a chaque image */
+        static int ldw, ldh; int dw = 0, dh = 0;
+        SDL_GL_GetDrawableSize(g_win, &dw, &dh);
+        android_surface_size(&dw, &dh);
+        if (dw > 0 && dh > 0 && (dw != ldw || dh != ldh)) { ldw = dw; ldh = dh; sdl_layout(); g_scale = (g_dst_w != 1024 || g_dst_h != 768 || g_dst_x || g_dst_y); }
+    }
+#endif
     while (SDL_PollEvent(&e)) {
         switch (e.type) {
-        case SDL_QUIT: InterlockedExchange(&g_quit, 1); break;
+        case SDL_QUIT: case SDL_APP_TERMINATING: InterlockedExchange(&g_quit, 1); break;
         case SDL_WINDOWEVENT: if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED || e.window.event == SDL_WINDOWEVENT_RESIZED) { sdl_layout(); g_scale = (g_dst_w != 1024 || g_dst_h != 768 || g_dst_x || g_dst_y); } break;
         case SDL_MOUSEBUTTONDOWN: if (e.button.button == SDL_BUTTON_LEFT) { touch_down = 1; sdl_to_game(e.button.x, e.button.y, &gx, &gy); g_cur_x = (float)gx; g_cur_y = (float)gy; tq_push(29, MAKELPARAM(gx, gy)); } break;
         case SDL_MOUSEMOTION: if (touch_down) { sdl_to_game(e.motion.x, e.motion.y, &gx, &gy); g_cur_x = (float)gx; g_cur_y = (float)gy; tq_push(30, MAKELPARAM(gx, gy)); } break;
         case SDL_MOUSEBUTTONUP: if (e.button.button == SDL_BUTTON_LEFT && touch_down) { touch_down = 0; sdl_to_game(e.button.x, e.button.y, &gx, &gy); tq_push(31, MAKELPARAM(gx, gy)); } break;
         case SDL_TEXTINPUT: if (g_text_mode) sdl_text(e.text.text); break;
         case SDL_KEYDOWN:
+#ifdef __ANDROID__
+            if (e.key.keysym.sym == SDLK_AC_BACK) {      /* Retour : Echap pour le jeu ; deux fois de suite en 1,2 s : quitter */
+                static Uint32 last_back;
+                Uint32 now = SDL_GetTicks();
+                if (last_back && now - last_back < 1200) { InterlockedExchange(&g_quit, 1); break; }
+                last_back = now;
+                if (g_text_mode) text_command(21); else { eq_push(2, 5, 100); eq_push(2, 6, 100); }
+                break;
+            }
+#endif
             if (g_text_mode) {
                 switch (e.key.keysym.sym) {
                 case SDLK_BACKSPACE: text_command(23); break;  case SDLK_DELETE: text_command(24); break;
@@ -124,24 +158,45 @@ int host_window_init(int width, int height)
     g_gl_trace = getenv("FTL_GLTRACE") != NULL;
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_GAMECONTROLLER) != 0) { fprintf(stderr, "SDL_Init : %s\n", SDL_GetError()); return 0; }
+#ifdef __ANDROID__
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+    SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");        /* Retour arrive comme une touche (voir host_pump) au lieu de fermer l'appli */
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "1");               /* un doigt = le pointeur du jeu (menus, tirs, glisser) */
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#endif
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     Uint32 fl = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_ALLOW_HIGHDPI;
     int full = getenv("FTL_FULLSCREEN") != NULL || getenv("SteamDeck") != NULL || getenv("SteamGamepadUI") != NULL;   /* Steam Deck : plein ecran */
     if (getenv("FTL_WINDOWED")) full = 0;
+#ifdef __ANDROID__
+    full = 1; fl |= SDL_WINDOW_FULLSCREEN; width = height = 0;   /* toujours plein ecran, a la taille de l'ecran ; bandes noires autour de l'image 4:3 */
+#endif
     if (full) fl |= SDL_WINDOW_FULLSCREEN_DESKTOP; else fl |= SDL_WINDOW_RESIZABLE;
     { const char *ws = getenv("FTL_WINSIZE"); int ww, wh; if (ws && sscanf(ws, "%dx%d", &ww, &wh) == 2 && ww > 0 && wh > 0) { width = ww; height = wh; } }   /* test : fenetre a une autre taille */
     g_win = SDL_CreateWindow("FTL (iPad, recompile)", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, fl);
     if (!g_win) { fprintf(stderr, "SDL_CreateWindow : %s\n", SDL_GetError()); return 0; }
     g_glctx = SDL_GL_CreateContext(g_win);
     if (!g_glctx) { fprintf(stderr, "SDL_GL_CreateContext : %s\n", SDL_GetError()); return 0; }
+#ifdef __ANDROID__
+#define wglSwapIntervalEXT ((void *)0)                  /* entree propre a Windows dans GLFUNCS */
+#define LOAD(r_, n, a) p_##n = (PFN_##n)SDL_GL_GetProcAddress(#n); if (!p_##n) p_##n = (PFN_##n)(void *)n;
+#else
 #define LOAD(r_, n, a) p_##n = (PFN_##n)SDL_GL_GetProcAddress(#n);
+#endif
     GLFUNCS(LOAD)
 #undef LOAD
+#ifdef __ANDROID__
+#undef wglSwapIntervalEXT
+#endif
     SDL_GL_SetSwapInterval(getenv("FTL_NOVSYNC") ? 0 : 1);
     SDL_ShowCursor(1);
-    SDL_StartTextInput();
+#ifndef __ANDROID__
+    SDL_StartTextInput();            /* Android : le clavier a l'ecran ne s'ouvre que pendant une saisie (host_text_begin) */
+#endif
     sdl_layout();
     g_scale = (g_dst_w != 1024 || g_dst_h != 768 || g_dst_x || g_dst_y);
     /* FBO de rendu 1024x768 (utilise seulement si la fenetre n'est pas a cette taille ; cree toujours : redimensionnement possible) */
@@ -190,3 +245,23 @@ static void host_swap(void)
         SDL_GL_SwapWindow(g_win);
     }
 }
+
+#ifdef __ANDROID__
+/* Barre de progression de la premiere copie des donnees (avant le jeu) : de simples rectangles traces avec glScissor + glClear sur le
+ * framebuffer 0, donc sans shader ni texture. L'etat est remis comme il etait (le FBO de rendu reste lie s'il y en a un). */
+void host_progress(float p)
+{
+    int dw = g_dst_w + 2 * g_dst_x, dh = g_dst_h + 2 * g_dst_y;
+    if (p < 0) p = 0; if (p > 1) p = 1;
+    p_glBindFramebuffer(0x8D40, 0);
+    glViewport(0, 0, dw, dh); glEnable(GL_SCISSOR_TEST);
+    glScissor(0, 0, dw, dh); glClearColor(0.03f, 0.05f, 0.12f, 1); glClear(GL_COLOR_BUFFER_BIT);
+    int bw = dw * 6 / 10, bh = dh / 24 > 8 ? dh / 24 : 8, bx = (dw - bw) / 2, by = dh / 2 - bh / 2;
+    glScissor(bx - 4, by - 4, bw + 8, bh + 8); glClearColor(0.8f, 0.9f, 1, 1); glClear(GL_COLOR_BUFFER_BIT);
+    glScissor(bx, by, bw, bh); glClearColor(0.05f, 0.08f, 0.16f, 1); glClear(GL_COLOR_BUFFER_BIT);
+    glScissor(bx, by, (int)(bw * p), bh); glClearColor(0.35f, 0.8f, 1, 1); glClear(GL_COLOR_BUFFER_BIT);
+    glDisable(GL_SCISSOR_TEST);
+    SDL_GL_SwapWindow(g_win);
+    if (g_scale) p_glBindFramebuffer(0x8D40, g_fbo_main);
+}
+#endif
