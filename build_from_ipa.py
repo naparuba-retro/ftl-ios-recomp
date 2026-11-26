@@ -76,9 +76,9 @@ def run(cmd, logfile=None, cwd=None, env=None, shell=False):
     if logfile:
         os.makedirs(os.path.dirname(logfile), exist_ok=True)
         with open(logfile, "wb") as lf:
-            r = subprocess.run(cmd, cwd=cwd, env=env, stdout=lf, stderr=subprocess.STDOUT, shell=shell)
+            r = subprocess.run(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=lf, stderr=subprocess.STDOUT, shell=shell)   # sans clavier : un "Appuyez sur une touche" d'un .bat ne bloque jamais
     else:
-        r = subprocess.run(cmd, cwd=cwd, env=env, shell=shell)
+        r = subprocess.run(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, shell=shell)
     if r.returncode != 0:
         if logfile:
             tail = open(logfile, "rb").read().decode("cp850" if IS_WIN else "utf-8", "replace").splitlines()[-25:]
@@ -115,8 +115,23 @@ def ghidra_env(c):
     env = dict(os.environ)
     env["JAVA_HOME"] = c.jdk
     env["PATH"] = os.path.join(c.jdk, "bin") + os.pathsep + env.get("PATH", "")
-    env["JAVA_TOOL_OPTIONS"] = "-Dapplication.settingsdir=" + os.path.join(c.out, "gsettings") + (" -XX:ActiveProcessorCount=%d" % c.jobs if not IS_WIN else "")   # n'utilise pas vos reglages Ghidra ; limite les threads de la JVM
+    # JAVA_TOOL_OPTIONS est decoupee par la JVM aux espaces : un dossier "Mon dossier FTL" cassait le demarrage de Java (le script de Ghidra
+    # repondait alors "java introuvable"). Le chemin est donc entre guillemets.
+    env["JAVA_TOOL_OPTIONS"] = '-Dapplication.settingsdir="%s"' % os.path.join(c.out, "gsettings") + (" -XX:ActiveProcessorCount=%d" % c.jobs if not IS_WIN else "")   # n'utilise pas vos reglages Ghidra ; limite les threads de la JVM
     return env
+
+
+def check_java(c):
+    """Fait demarrer Java une fois avant Ghidra, avec exactement l'environnement qu'il aura : sinon son script annonce seulement "java introuvable"."""
+    java = os.path.join(c.jdk, "bin", "java" + (".exe" if IS_WIN else ""))
+    try:
+        r = subprocess.run([java, "-version"], env=ghidra_env(c), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120)
+        out = r.stdout.decode("utf-8", "replace").strip()
+        ok = r.returncode == 0
+    except (OSError, subprocess.TimeoutExpired) as e:
+        ok, out = False, str(e)
+    if not ok:
+        die("Java does not start (%s).\n%s\nCheck the JDK (JDK 21 or newer) and that the folder path does not contain odd characters." % (java, out))
 
 def headless(c, args, logname):
     exe = os.path.join(c.ghidra, "support", "analyzeHeadless" + (".bat" if IS_WIN else ""))
@@ -148,6 +163,7 @@ def st_extract(c):
 
 def st_ghidra(c):
     if done(c, "ghidra") : return log("ghidra: already done")
+    check_java(c)
     shutil.rmtree(os.path.join(c.out, "ghidra"), ignore_errors=True); os.makedirs(os.path.join(c.out, "ghidra"))
     headless(c, ["-import", os.path.join(c.out, "ipa", "FTL"), "-overwrite"], "ghidra_import.log")      # analyse automatique par defaut
     headless(c, ["-process", "FTL", "-noanalysis", "-scriptPath", SCRIPTS, "-postScript", "FixSwitch.java"], "ghidra_fixswitch.log")
